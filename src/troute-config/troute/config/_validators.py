@@ -1,4 +1,4 @@
-from pydantic.fields import ModelField
+from pydantic.v1.fields import ModelField
 from datetime import datetime
 from typing import Tuple, TypeVar, Union
 
