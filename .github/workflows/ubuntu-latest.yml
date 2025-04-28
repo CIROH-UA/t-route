@@ -4,6 +4,7 @@
 name: Python application
 
 on:
+  work_dispatch
   push:
     branches: [ "master" ]
   pull_request:
