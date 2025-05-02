@@ -1,6 +1,6 @@
 import os
 
-from pydantic import Field, BaseModel, root_validator
+from pydantic.v1 import Field, BaseModel, root_validator
 from pathlib import Path
 
 from typing import Any, Dict, Optional
