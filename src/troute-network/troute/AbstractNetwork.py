@@ -942,7 +942,8 @@ def get_timesteps_from_nex(nexus_files):
         for line in f:
             output_file_timestamps.append(line.split(',')[1].strip())
     # Convert and reformat dates in the list
-    output_file_timestamps = [pd.to_datetime(i).strftime("%Y%m%d%H%M") for i in output_file_timestamps]
+    output_file_timestamps = pd.Series(output_file_timestamps)
+    output_file_timestamps = pd.to_datetime(output_file_timestamps).dt.strftime("%Y%m%d%H%M").tolist()
 
     # Sort the list
     output_file_timestamps.sort()
