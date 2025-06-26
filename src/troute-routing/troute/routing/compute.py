@@ -542,8 +542,8 @@ def compute_nhd_routing_v02(
     subnetwork_list,
     flowveldepth_interorder = {},
     from_files = True,
+    giuh_node = False,
 ):
-
     da_decay_coefficient = da_parameter_dict.get("da_decay_coefficient", 0)
     param_df["dt"] = dt
     param_df = param_df.astype("float32")
@@ -875,6 +875,7 @@ def compute_nhd_routing_v02(
                             assume_short_ts,
                             return_courant,
                             from_files = from_files,
+                            giuh_node=giuh_node
                         )
                     )
                 results_subn[order] = parallel(jobs)
@@ -1179,6 +1180,7 @@ def compute_nhd_routing_v02(
                             assume_short_ts,
                             return_courant,
                             from_files=from_files,
+                            giuh_node=giuh_node
                         )
                     )
 
@@ -1389,6 +1391,7 @@ def compute_nhd_routing_v02(
                         assume_short_ts,
                         return_courant,
                         from_files=from_files,
+                        giuh_node=giuh_node
                     )
                 )
 
@@ -1573,6 +1576,7 @@ def compute_nhd_routing_v02(
                     assume_short_ts,
                     return_courant,
                     from_files=from_files,
+                    giuh_node=giuh_node
                 )
             )
 
@@ -1732,6 +1736,7 @@ def compute_nhd_routing_v02(
                     },
                     assume_short_ts,
                     return_courant,
+                    giuh_node=giuh_node
                 )
             )
 

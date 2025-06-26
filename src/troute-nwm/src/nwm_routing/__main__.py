@@ -63,6 +63,9 @@ def main_v04(argv):
     
     showtiming = log_parameters.get("showtiming", None)
     
+    giuh_node = compute_parameters.get("giuh_node")
+      
+
 
     task_times = {}
     task_times['forcing_time'] = 0
@@ -248,7 +251,8 @@ def main_v04(argv):
             network.coastal_boundary_depth_df,
             network.unrefactored_topobathy_df,
             firstRun,
-            logFileName            
+            logFileName,
+            giuh_node=giuh_node
         )
       
         # returns list, first item is run result, second item is subnetwork items
@@ -1165,6 +1169,7 @@ def nwm_route(
     logFileName='troute_run_log.txt',  
     flowveldepth_interorder={},
     from_files=False,
+    giuh_node = False
 ):
 
     ################### Main Execution Loop across ordered networks      
@@ -1250,6 +1255,7 @@ def nwm_route(
         subnetwork_list,
         flowveldepth_interorder,
         from_files = from_files,
+        giuh_node = giuh_node
     )
     LOG.debug("MC computation complete in %s seconds." % (time.time() - start_time_mc))
     # returns list, first item is run result, second item is subnetwork items

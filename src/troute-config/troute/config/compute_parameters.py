@@ -64,6 +64,9 @@ class ComputeParameters(BaseModel):
     If True, Courant metrics are returnd with simulations. This only works for MC simulations
     """
 
+    giuh_node: Optional[bool] = None
+    """If True, the GIUH node is used for routing. This is only used for MC simulations. This is used to directly add the qlat to the streamflow of the reach."""
+
     restart_parameters: "RestartParameters" = Field(default_factory=dict)
     hybrid_parameters: "HybridParameters" = Field(default_factory=dict)
     forcing_parameters: "ForcingParameters" = Field(default_factory=dict)
@@ -209,7 +212,6 @@ class HybridParameters(BaseModel):
     https://github.com/NOAA-OWP/t-route/blob/master/test/LowerColorado_TX_v4/domain/coastal_domain_crosswalk.yaml
     NOTE: This is related to the ForcingParameters -> coastal_boundary_input_file parameter. 
     """
-
 
 class QLateralForcingSet(BaseModel):
     """
