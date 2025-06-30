@@ -3,10 +3,10 @@ name: Build and Test Docker Image
 on:
   push:
     branches:
-      - master
+      - ngiab
   pull_request:
     branches:
-      - master
+      - ngiab
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
@@ -23,4 +23,3 @@ jobs:
       - name: Run LowerColorado Test
         continue-on-error: true  # Continue with the next steps even if this step fails
         run: docker/troute.sh -V3 -f test/LowerColorado_TX/test_AnA.yaml
-
