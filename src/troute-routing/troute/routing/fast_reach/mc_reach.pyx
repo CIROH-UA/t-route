@@ -89,8 +89,6 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
 
     
     if giuh:
-        with gil:
-            print("GUI enabled")
         qlat_in = 0.0
     else:
         qlat_in = input_buf[i, 0] # n x 1   

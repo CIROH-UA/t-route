@@ -16,7 +16,6 @@ import troute.nhd_io as nhd_io #FIXME
 from troute.nhd_network import reverse_dict, extract_connections, reverse_network, reachable
 from .rfc_lake_gage_crosswalk import get_rfc_lake_gage_crosswalk, get_great_lakes_climatology
 import re
-import xarray as xr
 __verbose__ = False
 __showtiming__ = False
 
