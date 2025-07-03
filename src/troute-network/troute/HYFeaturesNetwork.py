@@ -734,9 +734,18 @@ class HYFeaturesNetwork(AbstractNetwork):
             # This capability should be here, but we need to think through how to handle all of this 
             # data in memory for large domains and many timesteps... - shorvath, Feb 28, 2024
             qlat_file_pattern_filter = self.forcing_parameters.get("qlat_file_pattern_filter", None)
-            if qlat_file_pattern_filter=="nex-*":
+            if qlat_file_pattern_filter=="nex-*" and qlat_file_pattern_filter=="cat-*":
                 def process_file(f):
-                    df = pd.read_csv(f, names=['timestamp', 'qlat'], index_col=[0])
+                    if qlat_file_pattern_filter=="nex-*":
+                        df = pd.read_csv(f, names=['timestamp', 'qlat'], index_col=[0])
+                    else:
+                        df = pd.read_csv(f,usecols= ['Time', 'Q_OUT'])
+                        df.rename(columns={'Time': 'timestamp', 'Q_OUT': 'qlat'}, inplace=True)
+                        gdf = gpd.read_file(self.supernetwork_parameters.get("geo_file_path"), layer="divides")
+                        cat_id = int(os.path.basename(f).split('-')[1].split('_')[0])
+                        area = gdf.loc[gdf['divide_id'] == 'cat-' + str(cat_id) , 'areasqkm'].values[0]
+                        df['qlat']  = (df['qlat'] * area * 1000000)/3600  #scaling output
+
                     df['timestamp'] = pd.to_datetime(df['timestamp']).dt.strftime('%Y%m%d%H%M')
                     df = df.set_index('timestamp')
                     df = df.T
