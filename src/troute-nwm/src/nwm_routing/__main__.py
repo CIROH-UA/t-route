@@ -154,7 +154,7 @@ def main_v04(argv):
     logFileName = 'NONE'    
     kernelTalks = log_parameters.get("log_directory", None)
     if kernelTalks:
-        logFileName = kernelTalks+'/kernelTalks.log'
+        logFileName = kernelTalks / 'kernelTalks.log'
         with open(logFileName, 'w') as preRunLog:
             preRunLog.write("************************************************************\n") 
             preRunLog.write("Pre- and post run parameter and run statistics output file. \n") 
@@ -167,7 +167,7 @@ def main_v04(argv):
                 preRunLog.write(outPutStr+"\n") 
                 LOG.info(outPutStr)
             else:
-                outPutStr = "Warmstart - restart file: "+restart_parameters['lite_channel_restart_file']
+                outPutStr = "Warmstart - restart file: " + str(restart_parameters['lite_channel_restart_file'])
                 preRunLog.write(outPutStr+" \n") 
                 LOG.info(outPutStr)
     
@@ -176,7 +176,7 @@ def main_v04(argv):
                 preRunLog.write(outPutStr+"\n") 
                 LOG.info(outPutStr)
             else:
-                outPutStr = "Waterbody restart file: "+restart_parameters['lite_waterbody_restart_file']
+                outPutStr = "Waterbody restart file: " + str(restart_parameters['lite_waterbody_restart_file'])
                 preRunLog.write(outPutStr+" \n")
                 LOG.info(outPutStr)
 
