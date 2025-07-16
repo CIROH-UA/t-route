@@ -237,7 +237,7 @@ python3 -m nwm_routing -f -V4 test_AnA_V4_HYFeature.yaml
 4. **NetCDF Issues:**
    - Resolve errors with NetCDF libraries (e.g., "netcdf.mod" not found) by running: `apt-get install *netcdf*`.
    - Locate the installed netcdf.mod (e.g., `find /usr/ -name *mod`).
-   - Define the NETCDF path in the compiler.sh file in T-Route (before the ‘if [-z “NETCDF …” ]’ statement): `export NETCDF="PATH_TO_NETCDF.MOD"`.
+   - Define the path of the directory that includes netcdf.mod in the compiler.sh file in T-Route (before the ‘if [-z “NETCDF …” ]’ statement): `export NETCDF="/path/of/dir/"`.
 
 5. **Python Version:**
    - Define `alias python=python3` in the .bashrc file if `python` is not defined.
