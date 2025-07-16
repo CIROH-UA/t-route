@@ -20,6 +20,7 @@ import dateutil.parser as dparser
 from datetime import datetime, timedelta
 
 from troute.nhd_network import reverse_dict
+import psutil
 
 LOG = logging.getLogger('')
 
@@ -2269,7 +2270,7 @@ def mask_find_seg(mask_list, nexus_dict, poi_crosswalk):
     return nex_id, seg_id
 
 def updated_flowveldepth(flowveldepth, nex_id, seg_id, mask_list):
-    flowveldepth = flowveldepth.copy(deep=True)
+    # flowveldepth = flowveldepth.copy(deep=True)
     flowveldepth.index.name = 'featureID'
     flowveldepth['Type'] = 'wb'
     flowveldepth.set_index('Type', append=True, inplace=True)
