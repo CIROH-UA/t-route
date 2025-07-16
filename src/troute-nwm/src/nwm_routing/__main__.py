@@ -36,10 +36,7 @@ LOG = logging.getLogger('')
 '''
 High level orchestration of ngen t-route simulations for NWM application
 '''
-def main_v04(argv):
-    pd.options.mode.copy_on_write = False
-    
-    
+def main_v04(argv):    
     
     args = _handle_args_v03(argv)
     # unpack user inputs
@@ -256,16 +253,8 @@ def main_v04(argv):
         # returns list, first item is run result, second item is subnetwork items
         subnetwork_list = run_results[1]
         run_results = run_results[0]
-        # print('Type Subnetwork list: ', type(subnetwork_list))
-        # print('Length of Subnetwork list: ', len(subnetwork_list))
-        
-        # print('Type run_results: ', type(run_results))
-        # print('Run results length: ', len(run_results))
-       
-        # print("Second Index type: ", type(run_results[1]))
-        # print("Second index length: ", len(run_results[1]))
-        # print("Second index of run_results: ", run_results[1])
 
+        
         
         route_end_time = time.time()
         task_times['route_time'] += route_end_time - route_start_time
