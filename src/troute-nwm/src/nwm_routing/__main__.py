@@ -1837,8 +1837,7 @@ def main_v03(argv):
     if showtiming:
         task_times['total_time'] = time.time() - main_start_time
 
-    LOG.debug("process complete in %s seconds." % (time.time() - main_start_time))
-    
+    LOG.debug("process complete in %s seconds." % (time.time() - main_start_time))    
     
     if showtiming:
         print('************ TIMING SUMMARY ************')
