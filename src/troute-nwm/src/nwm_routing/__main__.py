@@ -1839,6 +1839,7 @@ def main_v03(argv):
 
     LOG.debug("process complete in %s seconds." % (time.time() - main_start_time))
     
+    
     if showtiming:
         print('************ TIMING SUMMARY ************')
         print('----------------------------------------')
