@@ -23,3 +23,15 @@ jobs:
       - name: Run LowerColorado Test
         continue-on-error: true  # Continue with the next steps even if this step fails
         run: docker/troute.sh -V3 -f test/LowerColorado_TX/test_AnA.yaml
+
+      # - name: Run V4 Test on NHD
+      #   continue-on-error: true
+      #   run: docker/troute.sh -V4 -f test/LowerColorado_TX/test_AnA_V4_NHD.yaml
+
+      # - name: Run V4 Test on HYFeature
+      #   continue-on-error: true
+      #   run: docker/troute.sh -V4 -f test/LowerColorado_TX_v4/test_AnA_V4_HYFeature.yaml
+
+      # - name: Run V4 Test on HYFeature without DA
+      #   continue-on-error: true
+      #   run: docker/troute.sh -V4 -f test/LowerColorado_TX_v4/test_AnA_V4_HYFeature_noDA.yaml
