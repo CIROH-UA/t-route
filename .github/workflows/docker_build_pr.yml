@@ -4,6 +4,8 @@ on:
   pull_request:
     branches:
       - ngiab
+    paths-ignore:
+      - '**/*.md'
 
 permissions:
   contents: read
