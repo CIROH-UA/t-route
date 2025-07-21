@@ -1,13 +1,13 @@
 #!/bin/bash
 ###################################################################################
 # Helper script that allows you to execute the docker container like
-# it was a local install of t-route e.g. 
+# it was a local install of t-route e.g.
 # ~ python -m nwm_routing -V3 -f test/LowerColorado_TX/test_AnA.yaml
 # Can be executed as
 # ~ docker/troute.sh -V3 -f test/LowerColorado_TX/test_AnA.yaml
 # Although the former would fail as you need to be in the same dir as the .yaml
 # This script mounts the .yaml directory and makes it the workdir of the container
-################################################################################### 
+###################################################################################
 
 image_name="troute"
 container_yaml_dir="/config"  # The directory in the container where the YAML file will be mounted
@@ -36,4 +36,3 @@ fi
 
 # Mount the YAML file, set the working directory, and run the Docker container with all arguments (replacing the full YAML path with just its filename)
 docker run -v "${parent_folder}:${container_yaml_dir}/" -w "${container_yaml_dir}" ${image_name} "${@/$arg/$yaml_filename}"
-
