@@ -194,10 +194,9 @@ def nwm_output_generator(
     #delete unused results columns
     for i in range(len(results)):
         results[i] = list(results[i])
-        del results[i][4]            
-        del results[i][4]
-        del results[i][5]
-        del results[i][6]
+        results[i][4] = None
+        results[i][5] = None
+        results[i][6] = None
 
     if csv_output:
         csv_output_folder = output_parameters["csv_output"].get(
@@ -223,7 +222,7 @@ def nwm_output_generator(
             copy=False,
         )
         for i in range(len(results)):
-            del results[i][1]
+            results[i][1] = None
 
         if wbdyo and not waterbodies_df.empty:
             
@@ -233,7 +232,7 @@ def nwm_output_generator(
             ).to_flat_index()
 
             wbdy = pd.concat(
-                [pd.DataFrame(r[3], index=r[0], columns=i_columns) for r in results],
+                [pd.DataFrame(r[6], index=r[0], columns=i_columns) for r in results],
                 copy=False,
             )
 
@@ -275,7 +274,7 @@ def nwm_output_generator(
             ).to_flat_index()
             courant = pd.concat(
                 [
-                    pd.DataFrame(r[1], index=r[0], columns=courant_columns)
+                    pd.DataFrame(r[2], index=r[0], columns=courant_columns)
                     for r in results
                 ],
                 copy=False,
@@ -297,9 +296,9 @@ def nwm_output_generator(
         if stream_output_mask:
             stream_output_mask = Path(stream_output_mask)
         
-        nudge = np.concatenate([r[4] for r in results])
-        usgs_positions_id = np.concatenate([r[2][0] for r in results])
-        del results
+        nudge = np.concatenate([r[8] for r in results])
+        usgs_positions_id = np.concatenate([r[3][0] for r in results])
+
         nhd_io.write_flowveldepth(
             Path(stream_output_directory),
             stream_output_mask, 
@@ -315,6 +314,12 @@ def nwm_output_generator(
             poi_crosswalk = poi_crosswalk,
             nexus_dict= nexus_dict,
             )
+            
+        # if parity_set is undefined results won't be used again after this point
+        try:
+            parity_set
+        except NameError:
+            del results
 
         if (not logFileName == 'NONE'):
             with open(logFileName, 'a') as preRunLog:
