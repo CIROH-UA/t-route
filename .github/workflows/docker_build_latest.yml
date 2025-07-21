@@ -5,6 +5,8 @@ on:
     branches:
       - ngiab
 
+permissions:
+  contents: read
 
 jobs:
   build-and-push:
