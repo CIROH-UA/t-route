@@ -739,6 +739,8 @@ class HYFeaturesNetwork(AbstractNetwork):
         nts = run.get("nts", 1)
         qlat_input_folder = run.get("qlat_input_folder", None)
         qlat_input_file = run.get("qlat_input_file", None)
+        max_col = 1 + nts // qts_subdivisions
+        col_t0 =self.t0.strftime('%Y%m%d%H%M')
 
         if qlat_input_folder:
             qlat_input_folder = Path(qlat_input_folder)
@@ -794,6 +796,20 @@ class HYFeaturesNetwork(AbstractNetwork):
                     df.index = [int("".join(filter(str.isdigit, f.stem)))]
                     df = df.rename_axis(None, axis=1)
                     df.index.name = 'feature_id'
+                    try:
+                        col_t0_idx = df.columns.get_loc(col_t0)
+                    except KeyError:
+                        raise ValueError(f'Datetime column "{col_t0}" does not exist in nex-* files.')
+
+                    stop = col_t0_idx + max_col - 1
+                    # Check bounds for stop index
+                    if stop > len(df.columns):
+                        raise ValueError(
+                            f"The expected range of datetime columns does not exist in the nex-* files. "
+                            f"Requested columns from index {col_t0_idx} to {stop - 1}, "
+                            f"but dataframe only has {len(df.columns)} columns total."
+                        )
+                    df = df.iloc[:, col_t0_idx:stop]
                     return df
 
                 with Parallel(n_jobs=-1) as p:
