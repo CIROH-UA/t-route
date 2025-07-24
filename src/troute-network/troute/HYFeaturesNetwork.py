@@ -16,6 +16,7 @@ import troute.nhd_io as nhd_io #FIXME
 from troute.nhd_network import reverse_dict, extract_connections, reverse_network, reachable
 from .rfc_lake_gage_crosswalk import get_rfc_lake_gage_crosswalk, get_great_lakes_climatology
 import re
+import sqlite3
 __verbose__ = False
 __showtiming__ = False
 
@@ -734,13 +735,31 @@ class HYFeaturesNetwork(AbstractNetwork):
             # This capability should be here, but we need to think through how to handle all of this 
             # data in memory for large domains and many timesteps... - shorvath, Feb 28, 2024
             qlat_file_pattern_filter = self.forcing_parameters.get("qlat_file_pattern_filter", None)
-            if qlat_file_pattern_filter=="nex-*":
+            if qlat_file_pattern_filter in ["nex-*","cat-*"]:
+                if qlat_file_pattern_filter == "cat-*":
+                    gpkg_path = self.supernetwork_parameters.get("geo_file_path")
+                    with sqlite3.connect(gpkg_path) as conn:
+                        results = conn.execute("SELECT divide_id, areasqkm FROM divides")
+                        areas = {}
+                        for id, area in results:
+                            areas[id] = area
+                    
                 def process_file(f):
-                    df = pd.read_csv(f, names=['timestamp', 'qlat'], index_col=[0])
+                    f = Path(f)
+                    if qlat_file_pattern_filter=="nex-*":
+                        df = pd.read_csv(f, names=['timestamp', 'qlat'], index_col=[0])
+                    else:                        
+                        df = pd.read_csv(f,usecols= ['Time', 'Q_OUT'])
+                        df.rename(columns={'Time': 'timestamp', 'Q_OUT': 'qlat'}, inplace=True)
+                        cat_id = f.stem
+                        area = areas[cat_id]
+                        # https://github.com/CIROH-UA/ngen/blob/77d8ea28502bf8db771529c5852d273785e26554/include/core/Layer.hpp#L142
+                        df['qlat']  = (df['qlat'] * area * 1000000)/3600  #scaling output
+
                     df['timestamp'] = pd.to_datetime(df['timestamp']).dt.strftime('%Y%m%d%H%M')
                     df = df.set_index('timestamp')
                     df = df.T
-                    df.index = [int(os.path.basename(f).split('-')[1].split('_')[0])]
+                    df.index = [int("".join(filter(str.isdigit, f.stem)))]
                     df = df.rename_axis(None, axis=1)
                     df.index.name = 'feature_id'
                     return df
@@ -748,7 +767,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                 with Parallel(n_jobs=-1) as p:
                     dfs = p(delayed(process_file)(f) for f in qlat_files)                
                 # lateral flows [m^3/s] are stored at NEXUS points with NEXUS ids
-                nexuses_lateralflows_df = pd.concat(dfs, axis=0) 
+                lateralflows_df = pd.concat(dfs, axis=0) 
             else:
                 for f in qlat_files:
                     df = read_file(f)
@@ -759,11 +778,15 @@ class HYFeaturesNetwork(AbstractNetwork):
                     df = df.set_index('feature_id')
                     dfs.append(df)
             
-                # lateral flows [m^3/s] are stored at NEXUS points with NEXUS ids
-                nexuses_lateralflows_df = pd.concat(dfs, axis=1) 
+                # lateral flows [m^3/s] are stored at NEXUS points with NEXUS ids (if using the nex-* prefix)
+                lateralflows_df = pd.concat(dfs, axis=1) 
             
-            # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids
-            qlats_df = nexuses_lateralflows_df.rename(index=self.downstream_flowpath_dict)
+            qlats_df = lateralflows_df
+            
+            if qlat_file_pattern_filter != "cat-*":
+                # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids            
+                qlats_df.rename(index=self.downstream_flowpath_dict, inplace=True)
+            
             qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]
 
             '''
