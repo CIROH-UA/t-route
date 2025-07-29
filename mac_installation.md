@@ -87,7 +87,7 @@ Use an installer from https://www.python.org/downloads/macos/
 5. **Build and test T-Route:**
    - Go to your T-Route folder:
       ```zsh
-      cd t-route
+      cd ../t-route
       ```
    - Compile T-Route (may take a few minutes, depending on the machine):
       ```zsh
