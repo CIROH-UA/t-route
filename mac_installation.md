@@ -1,6 +1,8 @@
 # T-Route Setup Instructions and Troubleshooting Guide for macOS Users
 
-**Note**: The following instructions are extremely hacked together and probably don't work.
+Written and tested by Quinn Lee and Sonam Lama
+
+Contact qylee@ua.edu if you have any questions
 
 1. **Install Homebrew:**
 ```zsh
@@ -72,11 +74,6 @@ Use an installer from https://www.python.org/downloads/macos/
       ```
    - The output log should end up with something like:
      ![image](https://github.com/user-attachments/assets/48268212-0b74-4f75-9d52-97f68e6c80d0)
-   - Check the installation:
-      ```zsh
-      make check
-      ```
-      You will probably get some failed tests regarding `zstd`. I think you can ignore those though.
    - Finally, install the libraries:
       ```zsh
       sudo make install
