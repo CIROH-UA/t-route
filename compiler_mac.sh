@@ -12,8 +12,16 @@ build_routing=true
 build_config=true
 build_nwm=true
 
-export F90=$(which gfortran)
-export CC=$(which gcc)
+if [ -z "$F90" ]
+then
+    export F90="gfortran"
+    echo "using F90=${F90}"
+fi
+if [ -z "$CC" ]
+then
+    export CC="gcc"
+    echo "using CC=${CC}"
+fi
 
 #preserve old/default behavior of installing packages with -e
 WITH_EDITABLE=true
