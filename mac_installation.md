@@ -68,7 +68,7 @@ Use an installer from https://www.python.org/downloads/macos/
    - Configure the fortran-netcdf libraries:
       ```zsh
       export CPPFLAGS="-I$(brew --cellar gcc)/$(brew list --versions gcc | tr ' ' '\n' | tail -1)/gcc/include -I$(dirname $(sudo find /opt/homebrew -name 'netcdf.h' | head -n 1))"
-      export LDFLAGS="-L$(dirname $(find /opt/homebrew -name 'libgfortran*.dylib' | head -n 1)) -L$(dirname $(sudo find /opt/homebrew -name 'libnetcdf*.dylib' | head -n 1))"
+      export LDFLAGS="-L$(dirname $(sudo find /opt/homebrew -name 'libgfortran*.dylib' | head -n 1)) -L$(dirname $(sudo find /opt/homebrew -name 'libnetcdf*.dylib' | head -n 1))"
       export HDF5_PLUGIN_PATH=$(nc-config --plugindir)
       ./configure
       ```
