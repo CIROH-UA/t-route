@@ -501,8 +501,8 @@ cpdef object compute_network_structured(
     cdef int id = 0
     
     
-    while timestep < nsteps+1:
-        for i in range(num_reaches):
+    for i in range(num_reaches):
+        while timestep < nsteps+1:
             r = &reach_structs[i]
             #Need to get quc and qup
             upstream_flows = 0.0
@@ -807,10 +807,10 @@ cpdef object compute_network_structured(
                 nudge[gage_i, timestep] = da_buf[1]
                 lastobs_times[gage_i] = da_buf[2]
                 lastobs_values[gage_i] = da_buf[3]
-
+            timestep += 1
         # TODO: Address remaining TODOs (feels existential...), Extra commented material, etc.
 
-        timestep += 1
+        
 
     #pr.disable()
     #pr.print_stats(sort='time')
