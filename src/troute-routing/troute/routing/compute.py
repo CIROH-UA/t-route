@@ -15,6 +15,11 @@ import troute.routing.diffusive_utils_v02 as diff_utils
 from troute.routing.fast_reach import diffusive
 
 import logging
+import csv
+import heapq
+import pdb
+
+'''This is the newest version of the compute.py file, which is used to compute the routing for the NHD network.'''
 
 LOG = logging.getLogger('')
 
@@ -544,6 +549,7 @@ def compute_nhd_routing_v02(
     from_files = True,
     giuh_node = False,
 ):
+
     da_decay_coefficient = da_parameter_dict.get("da_decay_coefficient", 0)
     param_df["dt"] = dt
     param_df = param_df.astype("float32")
@@ -559,106 +565,120 @@ def compute_nhd_routing_v02(
             )
             subnetworks_only_ordered_jit = defaultdict(dict)
             subnetworks = defaultdict(dict)
+            reaches_ordered_bysubntw = defaultdict(dict)
             for tw, ordered_network in networks_with_subnetworks_ordered_jit.items():
                 intw = independent_networks[tw]
                 for order, subnet_sets in ordered_network.items():
                     subnetworks_only_ordered_jit[order].update(subnet_sets)
                     for subn_tw, subnetwork in subnet_sets.items():
-                        subnetworks[subn_tw] = {k: intw[k] for k in subnetwork}
+                        subnetworks[subn_tw] = {k: intw[k] for k in subnetwork}   #i think we can use rconn here instead of intw to save memory
+                        rconn_subn = subnetworks[subn_tw]  # this is the same as rconn_subn, but saves memory
+                        
+                        if not waterbodies_df.empty and not usgs_df.empty:
+                            path_func = partial(
+                                nhd_network.split_at_gages_waterbodies_and_junctions,
+                                set(usgs_df.index.values),
+                                set(waterbodies_df.index.values),
+                                subnetworks[subn_tw]
+                                )
+
+                        elif waterbodies_df.empty and not usgs_df.empty:
+                            path_func = partial(
+                                nhd_network.split_at_gages_and_junctions,
+                                set(usgs_df.index.values),
+                                subnetworks[subn_tw]
+                                )
+
+                        elif not waterbodies_df.empty and usgs_df.empty:
+                            path_func = partial(
+                                nhd_network.split_at_waterbodies_and_junctions,
+                                set(waterbodies_df.index.values),
+                                subnetworks[subn_tw]
+                                )
+
+                        else:
+                            path_func = partial(nhd_network.split_at_junction, subnetworks[subn_tw])
+
+                        reaches_ordered_bysubntw[order][
+                            subn_tw
+                        ] = nhd_network.dfs_decomposition(subnetworks[subn_tw], path_func)
             
-            reaches_ordered_bysubntw = defaultdict(dict)
-            for order, ordered_subn_dict in subnetworks_only_ordered_jit.items():
-                for subn_tw, subnet in ordered_subn_dict.items():
-                    conn_subn = {k: connections[k] for k in subnet if k in connections}
-                    rconn_subn = {k: rconn[k] for k in subnet if k in rconn}
-                    
-                    if not waterbodies_df.empty and not usgs_df.empty:
-                        path_func = partial(
-                            nhd_network.split_at_gages_waterbodies_and_junctions,
-                            set(usgs_df.index.values),
-                            set(waterbodies_df.index.values),
-                            rconn_subn
-                            )
 
-                    elif waterbodies_df.empty and not usgs_df.empty:
-                        path_func = partial(
-                            nhd_network.split_at_gages_and_junctions,
-                            set(usgs_df.index.values),
-                            rconn_subn
-                            )
-
-                    elif not waterbodies_df.empty and usgs_df.empty:
-                        path_func = partial(
-                            nhd_network.split_at_waterbodies_and_junctions,
-                            set(waterbodies_df.index.values),
-                            rconn_subn
-                            )
-
-                    else:
-                        path_func = partial(nhd_network.split_at_junction, rconn_subn)
-
-                    reaches_ordered_bysubntw[order][
-                        subn_tw
-                    ] = nhd_network.dfs_decomposition(rconn_subn, path_func)
-
-            cluster_threshold = 0.65  # When a job has a total segment count 65% of the target size, compute it
-            # Otherwise, keep adding reaches.
-
+            bin_threshold = 1.1  
             reaches_ordered_bysubntw_clustered = defaultdict(dict)
-
             for order in subnetworks_only_ordered_jit:
-                cluster = 0
-                reaches_ordered_bysubntw_clustered[order][cluster] = {
-                    "segs": [],
-                    "upstreams": {},
-                    "tw": [],
-                    "subn_reach_list": [],
-                }
+            # storing -capcaity as python only has min_heap and we want max_heap
+                heap = []
+                reaches_ordered_bysubntw_clustered[order] = defaultdict(dict)
+
+                cluster_counter = 0
+
                 for twi, (subn_tw, subn_reach_list) in enumerate(
                     reaches_ordered_bysubntw[order].items(), 1
                 ):
                     segs = list(chain.from_iterable(subn_reach_list))
-                    reaches_ordered_bysubntw_clustered[order][cluster]["segs"].extend(segs)
-                    reaches_ordered_bysubntw_clustered[order][cluster]["upstreams"].update(
-                        subnetworks[subn_tw]
-                    )
+                    segs_len = len(segs)
 
-                    reaches_ordered_bysubntw_clustered[order][cluster]["tw"].append(subn_tw)
-                    reaches_ordered_bysubntw_clustered[order][cluster][
-                        "subn_reach_list"
-                    ].extend(subn_reach_list)
+                    # try to assign to best-fit cluster (with max remaining capacity)
+                    if heap:
+                        remaining_cap, cluster = heap[0]
+                        remaining_cap = -remaining_cap  # restore positive capacity
+                        if segs_len <= remaining_cap:
+                            c = reaches_ordered_bysubntw_clustered[order][cluster]
+                            c["segs"].extend(segs)
+                            c["upstreams"].update(subnetworks[subn_tw])
+                            c["tw"].append(subn_tw)
+                            c["subn_reach_list"].extend(subn_reach_list)
 
-                    if (
-                        len(reaches_ordered_bysubntw_clustered[order][cluster]["segs"])
-                        >= cluster_threshold * subnetwork_target_size
-                    ) and (
-                        twi
-                        < len(reaches_ordered_bysubntw[order])
-                        # i.e., we haven't reached the end
-                        # TODO: perhaps this should be a while condition...
-                    ):
-                        cluster += 1
-                        reaches_ordered_bysubntw_clustered[order][cluster] = {
-                            "segs": [],
-                            "upstreams": {},
-                            "tw": [],
-                            "subn_reach_list": [],
-                        }
-            
+                            new_remaining = remaining_cap - segs_len
+                            heapq.heapreplace(heap, (-new_remaining, cluster))
+                            continue
+                        # else:
+                        #     # if it can't fit in the max_heap, just push the popped head back again
+                        #     #technically, you can add/create a new cluster, and add that associate cluster in the heap, but current logic works when the heap is empty
+                        #     heapq.heappush(heap, (-remaining_cap, cluster))
+
+                    # create a cluster when no cluster can fit or initiate the heap when heap is empty
+                    cluster = cluster_counter
+                    cluster_counter += 1
+                    capacity = (bin_threshold * subnetwork_target_size) - segs_len
+                    reaches_ordered_bysubntw_clustered[order][cluster] = {
+                        "segs": segs.copy(),
+                        "upstreams": dict(subnetworks[subn_tw]),
+                        "tw": [subn_tw],
+                        "subn_reach_list": list(subn_reach_list),
+                    }
+                    heapq.heappush(heap, (-capacity, cluster))
 
             # save subnetworks_only_ordered_jit and reaches_ordered_bysubntw_clustered in a list
             # to be passed on to next loop. Create a deep copy of this list to prevent it from being
             # altered before being returned
             subnetwork_list = [subnetworks_only_ordered_jit, reaches_ordered_bysubntw_clustered]
             subnetwork_list = copy.deepcopy(subnetwork_list)
-
         else:
             subnetworks_only_ordered_jit, reaches_ordered_bysubntw_clustered = copy.deepcopy(subnetwork_list)
         
         if 1 == 1:
             LOG.info("JIT Preprocessing time %s seconds." % (time.time() - start_time))
             LOG.info("starting Parallel JIT calculation")
+
         
+            
+        #     # save the information of reaches_ordered_bysubntw_clustered into a csv file that has info of order, cluster, and number of segments
+        #     with open("Optimized_Output/reaches_ordered_bysubntw_clustered" + "_" + str(bin_threshold) + "_" + str(subnetwork_target_size) + ".csv", "w", newline="") as csvfile:
+        #         fieldnames = ["order", "cluster", "num_segments"]
+        #         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        #         writer.writeheader()
+        #         for order, clusters in reaches_ordered_bysubntw_clustered.items():
+        #             for cluster, info in clusters.items():
+        #                 writer.writerow({
+        #                     "order": order,
+        #                     "cluster": cluster,
+        #                     "num_segments": len(info["segs"])
+        #                 })
+        
+
         start_para_time = time.time()
         # if 1 == 1:
         with Parallel(n_jobs=cpu_pool, backend="loky") as parallel:
@@ -679,6 +699,8 @@ def compute_nhd_routing_v02(
                                 offnetwork_upstreams.add(us)
 
                     segs.extend(offnetwork_upstreams)
+                    
+
                     
                     common_segs = list(param_df.index.intersection(segs))
                     wbodies_segs = set(segs).symmetric_difference(common_segs)
@@ -875,7 +897,7 @@ def compute_nhd_routing_v02(
                             assume_short_ts,
                             return_courant,
                             from_files = from_files,
-                            giuh_node=giuh_node
+                            giuh_node = giuh_node
                         )
                     )
                 results_subn[order] = parallel(jobs)
@@ -1180,7 +1202,6 @@ def compute_nhd_routing_v02(
                             assume_short_ts,
                             return_courant,
                             from_files=from_files,
-                            giuh_node=giuh_node
                         )
                     )
 
@@ -1391,7 +1412,6 @@ def compute_nhd_routing_v02(
                         assume_short_ts,
                         return_courant,
                         from_files=from_files,
-                        giuh_node=giuh_node
                     )
                 )
 
@@ -1576,7 +1596,6 @@ def compute_nhd_routing_v02(
                     assume_short_ts,
                     return_courant,
                     from_files=from_files,
-                    giuh_node=giuh_node
                 )
             )
 
@@ -1736,10 +1755,10 @@ def compute_nhd_routing_v02(
                     },
                     assume_short_ts,
                     return_courant,
-                    giuh_node=giuh_node
                 )
             )
-
+    end_time = time.time()
+    print(f"ELAPSED TIME IN COMPUTE_NHD_ROUTING_FUNCTION: {end_time - start_time} seconds")
     return results, subnetwork_list
 
 def compute_diffusive_routing(
