@@ -571,7 +571,7 @@ def compute_nhd_routing_v02(
                 for order, subnet_sets in ordered_network.items():
                     subnetworks_only_ordered_jit[order].update(subnet_sets)
                     for subn_tw, subnetwork in subnet_sets.items():
-                        subnetworks[subn_tw] = {k: intw[k] for k in subnetwork}   #i think we can use rconn here instead of intw to save memory
+                        subnetworks[subn_tw] = {k: intw[k] for k in subnetwork["reachable_nodes"]}   #i think we can use rconn here instead of intw to save memory
                         rconn_subn = subnetworks[subn_tw]  # this is the same as rconn_subn, but saves memory
                         
                         if not waterbodies_df.empty and not usgs_df.empty:
@@ -616,7 +616,7 @@ def compute_nhd_routing_v02(
                 for twi, (subn_tw, subn_reach_list) in enumerate(
                     reaches_ordered_bysubntw[order].items(), 1
                 ):
-                    segs = list(chain.from_iterable(subn_reach_list))
+                    segs = list(chain.from_iterable(subn_reach_list))     #the other way to achieve this would be to just subnetworks_only_ordered_jit[order][subn_tw]["reachable_nodes"]
                     segs_len = len(segs)
 
                     # try to assign to best-fit cluster (with max remaining capacity)
@@ -629,6 +629,7 @@ def compute_nhd_routing_v02(
                             c["upstreams"].update(subnetworks[subn_tw])
                             c["tw"].append(subn_tw)
                             c["subn_reach_list"].extend(subn_reach_list)
+                            c["connecting_nodes"].extend(list(subnetworks_only_ordered_jit[order][subn_tw]["connecting_nodes"]))
 
                             new_remaining = remaining_cap - segs_len
                             heapq.heapreplace(heap, (-new_remaining, cluster))
@@ -647,6 +648,7 @@ def compute_nhd_routing_v02(
                         "upstreams": dict(subnetworks[subn_tw]),
                         "tw": [subn_tw],
                         "subn_reach_list": list(subn_reach_list),
+                        "connecting_nodes": list(subnetworks_only_ordered_jit[order][subn_tw]["connecting_nodes"])
                     }
                     heapq.heappush(heap, (-capacity, cluster))
 
@@ -691,14 +693,24 @@ def compute_nhd_routing_v02(
                     order
                 ].items():
                     segs = clustered_subns["segs"]
-                    offnetwork_upstreams = set()
-                    segs_set = set(segs)
-                    for seg in segs:
-                        for us in rconn[seg]:
-                            if us not in segs_set:
-                                offnetwork_upstreams.add(us)
-
+                    
+                    # offnetwork_upstreams = set()
+                    # for_loop_start_time = time.time()
+                    # segs_set = set(segs)
+                    # for seg in segs:
+                    #     for us in rconn[seg]:
+                    #         if us not in segs_set:
+                    #             offnetwork_upstreams.add(us)
+                    # for_loop_end_time = time.time()
+                    # for_loop_time += (for_loop_end_time - for_loop_start_time) 
+        
+                    # segs.extend(offnetwork_upstreams)                                        
+                    offnetwork_upstreams = set(clustered_subns['connecting_nodes'])
                     segs.extend(offnetwork_upstreams)
+
+
+                    
+                
                     
 
                     
