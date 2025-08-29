@@ -102,6 +102,8 @@ python3 -m nwm_routing -f -V4 test_AnA_V4_NHD.yaml
 cd test/LowerColorado_TX_v4
 python3 -m nwm_routing -f -V4 test_AnA_V4_HYFeature.yaml
 ```
+### T-Route Setup Instructions for Mac Users
+Please follow our [macOS installation guide](mac_installation.md).
 
 ### T-Route Setup Instructions and Troubleshooting Guide for Windows Users
 
