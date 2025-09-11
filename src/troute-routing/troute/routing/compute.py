@@ -666,19 +666,19 @@ def compute_nhd_routing_v02(
 
         
             
-        #     # save the information of reaches_ordered_bysubntw_clustered into a csv file that has info of order, cluster, and number of segments
-        #     with open("Optimized_Output/reaches_ordered_bysubntw_clustered" + "_" + str(bin_threshold) + "_" + str(subnetwork_target_size) + ".csv", "w", newline="") as csvfile:
-        #         fieldnames = ["order", "cluster", "num_segments"]
-        #         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            # save the information of reaches_ordered_bysubntw_clustered into a csv file that has info of order, cluster, and number of segments
+            with open("Optimized_Output/reaches_ordered_bysubntw_clustered" + "_" + str(bin_threshold) + "_" + str(subnetwork_target_size) + ".csv", "w", newline="") as csvfile:
+                fieldnames = ["order", "cluster", "num_segments"]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-        #         writer.writeheader()
-        #         for order, clusters in reaches_ordered_bysubntw_clustered.items():
-        #             for cluster, info in clusters.items():
-        #                 writer.writerow({
-        #                     "order": order,
-        #                     "cluster": cluster,
-        #                     "num_segments": len(info["segs"])
-        #                 })
+                writer.writeheader()
+                for order, clusters in reaches_ordered_bysubntw_clustered.items():
+                    for cluster, info in clusters.items():
+                        writer.writerow({
+                            "order": order,
+                            "cluster": cluster,
+                            "num_segments": len(info["segs"])
+                        })
         
 
         start_para_time = time.time()
