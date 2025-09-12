@@ -15,9 +15,8 @@ import troute.routing.diffusive_utils_v02 as diff_utils
 from troute.routing.fast_reach import diffusive
 
 import logging
-import csv
 import heapq
-import pdb
+
 
 '''This is the newest version of the compute.py file, which is used to compute the routing for the NHD network.'''
 
@@ -571,8 +570,7 @@ def compute_nhd_routing_v02(
                 for order, subnet_sets in ordered_network.items():
                     subnetworks_only_ordered_jit[order].update(subnet_sets)
                     for subn_tw, subnetwork in subnet_sets.items():
-                        subnetworks[subn_tw] = {k: intw[k] for k in subnetwork["reachable_nodes"]}   #i think we can use rconn here instead of intw to save memory
-                        rconn_subn = subnetworks[subn_tw]  # this is the same as rconn_subn, but saves memory
+                        subnetworks[subn_tw] = {k: intw[k] for k in subnetwork["reachable_nodes"]}   
                         
                         if not waterbodies_df.empty and not usgs_df.empty:
                             path_func = partial(
@@ -616,9 +614,8 @@ def compute_nhd_routing_v02(
                 for twi, (subn_tw, subn_reach_list) in enumerate(
                     reaches_ordered_bysubntw[order].items(), 1
                 ):
-                    segs = list(chain.from_iterable(subn_reach_list))     #the other way to achieve this would be to just subnetworks_only_ordered_jit[order][subn_tw]["reachable_nodes"]
+                    segs = list(chain.from_iterable(subn_reach_list))    
                     segs_len = len(segs)
-
                     # try to assign to best-fit cluster (with max remaining capacity)
                     if heap:
                         remaining_cap, cluster = heap[0]
@@ -634,10 +631,6 @@ def compute_nhd_routing_v02(
                             new_remaining = remaining_cap - segs_len
                             heapq.heapreplace(heap, (-new_remaining, cluster))
                             continue
-                        # else:
-                        #     # if it can't fit in the max_heap, just push the popped head back again
-                        #     #technically, you can add/create a new cluster, and add that associate cluster in the heap, but current logic works when the heap is empty
-                        #     heapq.heappush(heap, (-remaining_cap, cluster))
 
                     # create a cluster when no cluster can fit or initiate the heap when heap is empty
                     cluster = cluster_counter
@@ -651,7 +644,6 @@ def compute_nhd_routing_v02(
                         "connecting_nodes": list(subnetworks_only_ordered_jit[order][subn_tw]["connecting_nodes"])
                     }
                     heapq.heappush(heap, (-capacity, cluster))
-
             # save subnetworks_only_ordered_jit and reaches_ordered_bysubntw_clustered in a list
             # to be passed on to next loop. Create a deep copy of this list to prevent it from being
             # altered before being returned
@@ -664,20 +656,6 @@ def compute_nhd_routing_v02(
             LOG.info("JIT Preprocessing time %s seconds." % (time.time() - start_time))
             LOG.info("starting Parallel JIT calculation")
 
-            # # save the information of reaches_ordered_bysubntw_clustered into a csv file that has info of order, cluster, and number of segments
-            # with open("Optimized_Output/reaches_ordered_bysubntw_clustered" + "_" + str(bin_threshold) + "_" + str(subnetwork_target_size) + ".csv", "w", newline="") as csvfile:
-            #     fieldnames = ["order", "cluster", "num_segments"]
-            #     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
-            #     writer.writeheader()
-            #     for order, clusters in reaches_ordered_bysubntw_clustered.items():
-            #         for cluster, info in clusters.items():
-            #             writer.writerow({
-            #                 "order": order,
-            #                 "cluster": cluster,
-            #                 "num_segments": len(info["segs"])
-            #             })
-
         start_para_time = time.time()
         # if 1 == 1:
         with Parallel(n_jobs=cpu_pool, backend="loky") as parallel:
@@ -689,16 +667,14 @@ def compute_nhd_routing_v02(
                 for cluster, clustered_subns in reaches_ordered_bysubntw_clustered[
                     order
                 ].items():
-                    segs = list(chain.from_iterable(subn_reach_list))                                   
+                    segs = clustered_subns['segs']
                     offnetwork_upstreams = set(clustered_subns['connecting_nodes'])
                     segs.extend(offnetwork_upstreams)
                     
                     common_segs = list(param_df.index.intersection(segs))
                     wbodies_segs = set(segs).symmetric_difference(common_segs)
-                    
                     #Declare empty dataframe
                     waterbody_types_df_sub = pd.DataFrame()
-
                     if not waterbodies_df.empty:
                         lake_segs = list(waterbodies_df.index.intersection(segs))
                         waterbodies_df_sub = waterbodies_df.loc[

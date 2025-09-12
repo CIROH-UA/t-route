@@ -743,8 +743,6 @@ def build_subnetworks(connections, rconn, min_size, sources=None):
                     if us_depth <= stop_depth:
                         Q.extend(zip(rx, [us_depth] * len(rx)))
                 
-                # reachable: a list of reachable segments within max_depth from source node h
-                # rv[h]= reachable
                 rv[h]["reachable_nodes"] = reachable
 
             # find headwater segments in reachable groups, these will become the next set of sources
@@ -752,7 +750,6 @@ def build_subnetworks(connections, rconn, min_size, sources=None):
             new_sources = set()
             for tw, _ in rv.items():
                 # identify downstream connections for segments in this subnetwork
-                # seg = rv[tw]
                 seg = rv[tw]["reachable_nodes"]
                 c = {key: connections[key] for key in seg}
                 # find apparent headwaters, will include new sources and actual headwaters
@@ -762,7 +759,6 @@ def build_subnetworks(connections, rconn, min_size, sources=None):
                 # append list of new sources
                 new_sources.update(srcs)
                 # remove new sources from the subnetwork list
-                # rv[tw]["reachable_nodes"].difference_update(srcs)
                 rv[tw]["reachable_nodes"].difference_update(srcs)
                 rv[tw]["connecting_nodes"] = srcs
             
