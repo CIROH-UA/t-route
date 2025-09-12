@@ -689,8 +689,7 @@ def compute_nhd_routing_v02(
                 for cluster, clustered_subns in reaches_ordered_bysubntw_clustered[
                     order
                 ].items():
-                    segs = clustered_subns["segs"]    
-                    # segs.extend(offnetwork_upstreams)                                        
+                    segs = list(chain.from_iterable(subn_reach_list))                                   
                     offnetwork_upstreams = set(clustered_subns['connecting_nodes'])
                     segs.extend(offnetwork_upstreams)
                     
@@ -992,17 +991,8 @@ def compute_nhd_routing_v02(
                     # TODO: Confirm that a list here is best -- we are sorting,
                     # so a set might be sufficient/better
                     segs = list(chain.from_iterable(subn_reach_list))
-                    #segs = subnetworks_only_ordered_jit[order][subn_tw]["reachable_nodes"]
-                    breakpoint()
-                    offnetwork_upstreams = set()
-                    segs_set = set(segs)
-                    for seg in segs:
-                        for us in rconn[seg]:
-                            if us not in segs_set:
-                                offnetwork_upstreams.add(us)
-
+                    offnetwork_upstreams = set(subnetworks_only_ordered_jit[order][subn_tw]["connecting_nodes"])
                     segs.extend(offnetwork_upstreams)
-                    
                     common_segs = list(param_df.index.intersection(segs))
                     wbodies_segs = set(segs).symmetric_difference(common_segs)
                     
