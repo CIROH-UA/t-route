@@ -7,7 +7,6 @@ import time
 import pandas as pd
 import numpy as np
 import copy
-import os.path
 
 import troute.nhd_network as nhd_network
 from troute.routing.fast_reach.mc_reach import compute_network_structured
