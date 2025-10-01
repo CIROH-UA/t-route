@@ -58,7 +58,7 @@ Please follow our [macOS installation guide](mac_installation.md).
 **Note**: The following instructions are for setting up T-Route on a Linux environment (standalone, no MPI). If you are using Windows, please install WSL (Windows Subsystem for Linux) before proceeding.
 
 0. **Install WSL if on Windows:**
-See the ![WSL instructions](https://learn.microsoft.com/en-us/windows/wsl/install).
+See the [WSL instructions](https://learn.microsoft.com/en-us/windows/wsl/install).
 
 1. **Set up system requirements:**
    ```shell
