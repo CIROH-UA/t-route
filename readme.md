@@ -28,6 +28,7 @@ T-Route's flexible design is ideal for NOAA's National Water Model (NWM) 3.0, bu
 
 ## General Scheme:
 The figure below illustrates the workflow for executing T-Route via two interfaces: the Command Line Interface (CLI) and the Basic Model Interface (BMI). When using the CLI, the user can select from two river network representations: NHDNetwork or HYFeatures. In contrast, the BMI exclusively supports HYFeatures. For the routing method, users have the option to apply either the Muskingum-Cunge method or the Diffusive Wave method.
+
 <img src=https://raw.githubusercontent.com/NOAA-OWP/T-Route/master/doc/images/scheme.png height=400>
 
 ## Project Overview:
