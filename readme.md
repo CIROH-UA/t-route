@@ -61,108 +61,107 @@ Please follow our [macOS installation guide](mac_installation.md).
 See the [WSL instructions](https://learn.microsoft.com/en-us/windows/wsl/install).
 
 1. **Set up system requirements:**
-   ```shell
-   sudo apt update
-   sudo apt install python3-pip
-   ```
+```shell
+sudo apt update
+sudo apt install python3-pip
+```
      
 2. **Install Python 3.10:**
 Python 3.10 is required for T-Route. If you attempt to build T-Route with a different Python version, it will not work.
-   - Install required build dependencies
-   ```shell
-   sudo apt install build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev curl
-   ```
-   - Install Python 3.10 release
-   ```shell
-   wget https://www.python.org/ftp/python/3.10.18/Python-3.10.18.tar.xz
-   ```
-   - Build Python 3.10. Here, `sudo make altinstall` installs Python 3.10 as an alternate Python version, instead of replacing your default Python version.
-   ```shell
-   tar -xf Python-3.10.18.tar.xz
-   cd Python-3.10.18
-   ./configure
-   sudo make altinstall
-   ```
+- Install required build dependencies
+```shell
+sudo apt install build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev curl
+```
+- Install Python 3.10 release
+```shell
+wget https://www.python.org/ftp/python/3.10.18/Python-3.10.18.tar.xz
+```
+- Build Python 3.10. Here, `sudo make altinstall` installs Python 3.10 as an alternate Python version, instead of replacing your default Python version.
+```shell
+tar -xf Python-3.10.18.tar.xz
+cd Python-3.10.18
+./configure
+sudo make altinstall
+```
  
 3. **Clone T-Route and create its environment:**
-   - Go to a folder of your choice and create a T-Route directory
-      ```shell
-      mkdir ~/troute1
-      cd ~/troute1
-      ```
-   - Clone a T-Route repository (the current main branch is used as an example):
-      ```shell
-      git clone https://github.com/CIROH-UA/t-route.git
-      cd troute1
-      ```
-   - Activate your virtual environment
-      ```shell
-      python3.10 -m venv name_of_venv
-      source name_of_venv/bin/activate
-      ```
-   - Install python packages per requirements file
-      ```shell
-      pip install -r requirements.txt
-      ```
+- Go to a folder of your choice and create a T-Route directory
+   ```shell
+   mkdir ~/troute1
+   cd ~/troute1
+   ```
+- Clone a T-Route repository (the current main branch is used as an example):
+   ```shell
+   git clone https://github.com/CIROH-UA/t-route.git
+   cd troute1
+   ```
+- Activate your virtual environment
+   ```shell
+   python3.10 -m venv name_of_venv
+   source name_of_venv/bin/activate
+   ```
+- Install python packages per requirements file
+   ```shell
+   pip install -r requirements.txt
+   ```
 
 4. **Download & build NetCDF Fortran libraries from UCAR:**
-   - Go to a folder of your choice and download the source code:
-      ```shell
-      mkdir ~/netcdf-fortran
-      cd ~/netcdf-fortran
-      wget https://downloads.unidata.ucar.edu/netcdf-fortran/4.6.1/netcdf-fortran-4.6.1.tar.gz
-      tar xvf netcdf-fortran-4.6.1.tar.gz
-      cd netcdf-fortran-4.6.1/
-      ```
-   - Install some prerequisites (Fortran compiler, build essentials, standard C-netCDF library):
-      ```shell
-      sudo apt install gfortran libnetcdf-dev
-      ```
-   - Configure the fortran-netcdf libraries:
-      ```shell
-      ./configure
-      ```
-   - There should be no error message, and the output log should end up with something like:
-     ![image](https://github.com/user-attachments/assets/48268212-0b74-4f75-9d52-97f68e6c80d0)
-     (Warnings about zstd support are okay.)
-   - Finally, install the libraries:
-      ```shell
-      sudo make install
-      ```
-   - Output should be something like:
-      ![image](https://github.com/user-attachments/assets/57e48501-18f4-4004-9b10-5a9245186e38)
+- Go to a folder of your choice and download the source code:
+   ```shell
+   mkdir ~/netcdf-fortran
+   cd ~/netcdf-fortran
+   wget https://downloads.unidata.ucar.edu/netcdf-fortran/4.6.1/netcdf-fortran-4.6.1.tar.gz
+   tar xvf netcdf-fortran-4.6.1.tar.gz
+   cd netcdf-fortran-4.6.1/
+   ```
+- Install some prerequisites (Fortran compiler, build essentials, standard C-netCDF library):
+   ```shell
+   sudo apt install gfortran libnetcdf-dev
+   ```
+- Configure the fortran-netcdf libraries:
+   ```shell
+   ./configure
+   ```
+- There should be no error message, and the output log should end up with something like:
+   ![image](https://github.com/user-attachments/assets/48268212-0b74-4f75-9d52-97f68e6c80d0)
+   (Warnings about zstd support are okay.)
+- Finally, install the libraries:
+   ```shell
+   sudo make install
+   ```
+- Output should be something like:
+   ![image](https://github.com/user-attachments/assets/57e48501-18f4-4004-9b10-5a9245186e38)
 
 5. **Build and test T-Route:**
-   - Go back to your T-Route folder:
-      ```shell
-      cd ~/troute1
-      ```
-   - Here, you will have to do a little investigating. You will need to find the location of netcdf.mod and include it in your compiler script.
-      ```shell
-      find /usr/ -name netcdf.mod
-      ```
-   - Define the path of the directory that includes netcdf.mod in the compiler.sh file in T-Route (before the `if [-z “NETCDF …” ]` statement): `export NETCDF="/path/of/dir/`. In many cases, this directory is `/usr/local/lib/`.
-   - Compile T-Route (may take a few minutes, depending on the machine):
-      ```shell
-      ./compiler.sh
-      ```
-   - Set path to runtime netcdf-Fortran library. We also recommend including this in the .bashrc file or your equivalent so that you don't have to run this every time:
-      ```shell
-      export LD_LIBRARY_PATH=/usr/local/lib/
-      ```
-   - Run one of the demo examples provided:
-      ```shell
-      cd test/LowerColorado_TX
-      python3 -m nwm_routing -f -V4 test_AnA_V4_NHD.yaml
-      ```
-   - The latter is a hybrid (MC + diffusive) routing example that should run within a few minutes at most
+- Go back to your T-Route folder:
+   ```shell
+   cd ~/troute1
+   ```
+- Here, you will have to do a little investigating. You will need to find the location of netcdf.mod and include it in your compiler script.
+   ```shell
+   find /usr/ -name netcdf.mod
+   ```
+- Define the path of the directory that includes netcdf.mod in the compiler.sh file in T-Route (before the `if [-z “NETCDF …” ]` statement): `export NETCDF="/path/of/dir/`. In many cases, this directory is `/usr/local/lib/`.
+- Compile T-Route (may take a few minutes, depending on the machine):
+   ```shell
+   ./compiler.sh
+   ```
+- Set path to runtime netcdf-Fortran library. We also recommend including this in the .bashrc file or your equivalent so that you don't have to run this every time:
+   ```shell
+   export LD_LIBRARY_PATH=/usr/local/lib/
+   ```
+- Run one of the demo examples provided (this is a hybrid MC + diffusive routing example that should run within a few minutes at most):
+   ```shell
+   cd test/LowerColorado_TX
+   python3 -m nwm_routing -f -V4 test_AnA_V4_NHD.yaml
+   ```
 
 
 ### T-Route Setup Troubleshooting Guide
 
 **Handle Permission Errors:**
-   - Use `sudo chmod 777 <path>` for "permission denied" errors (replace `<path>` with the relevant directory).
-   - If you are not allowed to execute a script, use `chmod +x /path/to/script.sh` to make the script executable.
+- Use `sudo chmod 777 <path>` for "permission denied" errors (replace `<path>` with the relevant directory).
+- If you are not allowed to execute a script, use `chmod +x /path/to/script.sh` to make the script executable.
 
 By following these instructions, you should successfully install and set up T-Route on your Linux system. For any issues or questions, feel free to seek assistance or open an issue.
 
