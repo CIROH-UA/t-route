@@ -1,6 +1,6 @@
 # T-Route - Tree-Based Channel Routing 
 
-**Fast, flexible, modular channel routing for the National water model and beyond**:  
+**Fast, flexible, modular channel routing for the National Water Model and beyond**:  
 
 T-Route, a dynamic channel routing model, offers a comprehensive solution for river network routing problems. It is designed to handle 1-D channel routing challenges in vector-based river network data, such as the USGS's NHDPlus High Resolution dataset, and OGC WaterML 2.0 Surface Hydrology Features (HY_Features) data model used in NextGen framework.
 
@@ -26,12 +26,12 @@ Expanding its capabilities, T-Route now supports the OGC WaterML 2.0 Surface Hyd
 
 T-Route's flexible design is ideal for NOAA's National Water Model (NWM) 3.0, but its utility extends to various research and practical applications. While the code is currently bespoke for NWM, efforts are ongoing to generalize the core utilities, making T-Route compatible with any standardized network and forcing data.
 
-## General Sheme:
+## General Scheme:
 The figure below illustrates the workflow for executing T-Route via two interfaces: the Command Line Interface (CLI) and the Basic Model Interface (BMI). When using the CLI, the user can select from two river network representations: NHDNetwork or HYFeatures. In contrast, the BMI exclusively supports HYFeatures. For the routing method, users have the option to apply either the Muskingum-Cunge method or the Diffusive Wave method.
 <img src=https://raw.githubusercontent.com/NOAA-OWP/T-Route/master/doc/images/scheme.png height=400>
 
 ## Project Overview:
-- **Technology Stack**: Combines Python with Fortran for core routing model engines. The river network pre-processor, river network traversal framework, and time series data model are all written in python. The routing model engines (e.g. Muskingum-Cunge and diffusive wave) are primarily written in fortran, though we can imagine future additions to the engine suite being writted in any number of laguages that can be packaged as python extensions.
+- **Technology Stack**: Combines Python with Fortran for core routing model engines. The river network pre-processor, river network traversal framework, and time series data model are all written in Python. The routing model engines (e.g. Muskingum-Cunge and diffusive wave) are primarily written in Fortran, though we can imagine future additions to the engine suite being writted in any number of languages that can be packaged as Python extensions.
 - **Current Status**: Focused on integration with NWM 3.0.
 - **Demonstrations**: The `/test` directory includes a T-Route demonstration on the Lower Colorado River, TX, showcasing capabilities like streamflow data assimilation and diffusive wave routing.
 
@@ -48,138 +48,75 @@ T-Route development is rigorously aligned with and guided by the NOAA Office of 
 ## Summary:
 T-Route represents streamflow channel routing and reservoir routing, assimilating data on vector-based channel networks. It fits into a broader framework where it interacts with land surface models, Forcing Engines, and coastal models, each playing a pivotal role in hydrologic forecasting and analysis.
 
-## Configuration and Dependencies
-
-This program uses the following system packages:
-```
-python3
-gcc-gfortran
-```
-
-... and the following non-default python modules:
-``` 
-numpy 
-pandas 
-xarray 
-netcdf4 
-joblib
-toolz
-Cython
-pyyaml
-geopandas
-pyarrow
-deprecated
-```
-
 ## Installation
 
-please see usage and testing below. Standby for docker container instructions in the near future.
-
-## Configuration
-
-Currently, there are no specific configuration details. Stand by for updates.
-
-## Usage and Testing
-To get a sense of the operation of the routing scheme, follow this sequence of commands:
-
-```shell
-# install required python modules
-pip3 install numpy pandas xarray netcdf4 joblib toolz pyyaml Cython>3,!=3.0.4 geopandas pyarrow deprecated wheel
-
-# clone t-toute
-git clone --progress --single-branch --branch master http://github.com/NOAA-OWP/T-Route.git
-
-# compile and install
-./compiler.sh
-
-# execute a demonstration test with NHD network
-cd test/LowerColorado_TX
-python3 -m nwm_routing -f -V4 test_AnA_V4_NHD.yaml
-
-# OR
-
-# execute a demonstration test with HYFeature network
-cd test/LowerColorado_TX_v4
-python3 -m nwm_routing -f -V4 test_AnA_V4_HYFeature.yaml
-```
 ### T-Route Setup Instructions for Mac Users
 Please follow our [macOS installation guide](mac_installation.md).
 
-### T-Route Setup Instructions and Troubleshooting Guide for Windows Users
+### T-Route Setup Instructions and Troubleshooting Guide for Linux and Windows Subsystem for Linux (WSL) Users
 
 **Note**: The following instructions are for setting up T-Route on a Linux environment (standalone, no MPI). If you are using Windows, please install WSL (Windows Subsystem for Linux) before proceeding.
 
-### T-Route Setup and Testing Guide for Windows Users WITHOUT conda [based on pip and venv - only widely available dependencies].
-### WARNING: INSTALLATION WITHIN EXISTING MINICONDA/CONDA VIRTUAL ENVIRONMENT NOT RECOMMENDED, PIP AND CONDA DO NOT MIX WELL, AND YOU MAY BREAK YOUR CONDA ENVIRONMENT!
+0. **Install WSL if on Windows:**
+See the ![WSL instructions](https://learn.microsoft.com/en-us/windows/wsl/install).
 
-1. **Install Recommended distro:**
-   - Download and install WSL2 for your Windows OS
-   - We recommend long-term stable (LTS) Ubuntu distribution 22.04 or 20.04 (24.04 not recommended yet)
-   - Open Windows Power Shell and issue
-      ``` shell
-      wsl --install Ubuntu-22.04
-      ```
-   - Enter (root) username and password (2x) of your choice
+1. **Set up system requirements:**
+   ```shell
+   sudo apt update
+   sudo apt install python3-pip
+   ```
      
-2. **Set up venv-based virtual environment:**
-   - From root (the username you created under 1):
-      - Update Linux distro:
-        ```shell
-        sudo apt update
-        ```
-      - Install pip (package manager):
-        ```shell
-        sudo apt install python3-pip
-        ```
-      - Install venv:
-         ```shell
-         sudo apt install python3.10-venv
-         ```
-      - Create a virtual environment for T-Route (named here 'troute-env1'):
-         ```shell
-         python3 -m venv troute_env1
-         ```
-      - Activate your shiny new virtual environment:
-         ```shell
-         source troute_env1/bin/activate
-         ```
-      - Now, the command prompts in the Shell window should start with (troute-env1)
+2. **Install Python 3.10:**
+Python 3.10 is required for T-Route. If you attempt to build T-Route with a different Python version, it will not work.
+   - Install required build dependencies
+   ```shell
+   sudo apt install build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev curl
+   ```
+   - Install Python 3.10 release
+   ```shell
+   wget https://www.python.org/ftp/python/3.10.18/Python-3.10.18.tar.xz
+   ```
+   - Build Python 3.10. Here, `sudo make altinstall` installs Python 3.10 as an alternate Python version, instead of replacing your default Python version.
+   ```shell
+   tar -xf Python-3.10.18.tar.xz
+   cd Python-3.10.18
+   ./configure
+   sudo make altinstall
+   ```
  
-3. **Clone T-Route:**
-   - Go to a folder of your choice (here, your home folder) and create a T-Route directory
+3. **Clone T-Route and create its environment:**
+   - Go to a folder of your choice and create a T-Route directory
       ```shell
-      mkdir troute1
-      cd troute1
+      mkdir ~/troute1
+      cd ~/troute1
       ```
    - Clone a T-Route repository (the current main branch is used as an example):
       ```shell
-      git clone --progress --single-branch --branch master http://github.com/NOAA-OWP/T-Route.git
+      git clone https://github.com/CIROH-UA/t-route.git
       cd troute1
+      ```
+   - Activate your virtual environment
+      ```shell
+      python3.10 -m venv name_of_venv
+      source name_of_venv/bin/activate
       ```
    - Install python packages per requirements file
       ```shell
       pip install -r requirements.txt
       ```
 
-4. **Download & build netcdf fortran libraries from UCAR:**
-   - Go to a folder of your choice (here, your home folder) and download the source code:
+4. **Download & build NetCDF Fortran libraries from UCAR:**
+   - Go to a folder of your choice and download the source code:
       ```shell
-      cd ~
+      mkdir ~/netcdf-fortran
+      cd ~/netcdf-fortran
       wget https://downloads.unidata.ucar.edu/netcdf-fortran/4.6.1/netcdf-fortran-4.6.1.tar.gz
-      ```
-   - Unzip it:
-      ```shell
       tar xvf netcdf-fortran-4.6.1.tar.gz
-      ```
-   - Enter the directory:
-      ```shell
       cd netcdf-fortran-4.6.1/
       ```
-   - Install some prerequisites (Fortran compiler, build essentials, standard C-netcdf library):
+   - Install some prerequisites (Fortran compiler, build essentials, standard C-netCDF library):
       ```shell
-      sudo apt install gfortran
-      sudo apt install build-essential
-      sudo apt-get install libnetcdf-dev
+      sudo apt install gfortran libnetcdf-dev
       ```
    - Configure the fortran-netcdf libraries:
       ```shell
@@ -187,12 +124,7 @@ Please follow our [macOS installation guide](mac_installation.md).
       ```
    - There should be no error message, and the output log should end up with something like:
      ![image](https://github.com/user-attachments/assets/48268212-0b74-4f75-9d52-97f68e6c80d0)
-   - Check the installation (running two sets of examples):
-      ```shell
-      make check
-      ```
-   - Again, there should be no error message (expect some warnings, though), and output should end with "passing" of two sets:
-     ![image](https://github.com/user-attachments/assets/83745989-9f14-4c1b-a2a1-675aa94e5181)
+     (Warnings about zstd support are okay.)
    - Finally, install the libraries:
       ```shell
       sudo make install
@@ -201,15 +133,20 @@ Please follow our [macOS installation guide](mac_installation.md).
       ![image](https://github.com/user-attachments/assets/57e48501-18f4-4004-9b10-5a9245186e38)
 
 5. **Build and test T-Route:**
-   - Go to your T-Route folder:
+   - Go back to your T-Route folder:
       ```shell
       cd ~/troute1
       ```
+   - Here, you will have to do a little investigating. You will need to find the location of netcdf.mod and include it in your compiler script.
+      ```shell
+      find /usr/ -name netcdf.mod
+      ```
+   - Define the path of the directory that includes netcdf.mod in the compiler.sh file in T-Route (before the `if [-z “NETCDF …” ]` statement): `export NETCDF="/path/of/dir/`. In many cases, this directory is `/usr/local/lib/`.
    - Compile T-Route (may take a few minutes, depending on the machine):
       ```shell
       ./compiler.sh
       ```
-   - Set path to runtime netcdf-Fortran library [recommend including this in the .bashrc file or your equivalent]:
+   - Set path to runtime netcdf-Fortran library. We also recommend including this in the .bashrc file or your equivalent so that you don't have to run this every time:
       ```shell
       export LD_LIBRARY_PATH=/usr/local/lib/
       ```
@@ -221,35 +158,13 @@ Please follow our [macOS installation guide](mac_installation.md).
    - The latter is a hybrid (MC + diffusive) routing example that should run within a few minutes at most
 
 
-### T-Route Setup Instructions and Troubleshooting Guide for Windows Users - Legacy Conda Version [may have to be built with compiler.sh no-e option]
+### T-Route Setup Troubleshooting Guide
 
-1. **Install Required Components:**
-   - Open the WSL terminal.
-   - Install Miniconda, Python, Pip, and Git.
-   - Clone the Miniconda template repository: `git clone https://github.com/jameshalgren/miniconda-template.git`.
-   - Follow the repository instructions to create a new environment.
-
-2. **Activate the Environment:**
-   - Activate the new environment created in the previous step.
-
-3. **Install T-Route:**
-   - Follow the instructions in the T-Route repository (https://github.com/NOAA-OWP/T-Route/tree/master) for installation.
-   - Ensure gcc, gfortran, and all required Python libraries are installed.
-
-4. **NetCDF Issues:**
-   - Resolve errors with NetCDF libraries (e.g., "netcdf.mod" not found) by running: `apt-get install *netcdf*`.
-   - Locate the installed netcdf.mod (e.g., `find /usr/ -name *mod`).
-   - Define the path of the directory that includes netcdf.mod in the compiler.sh file in T-Route (before the ‘if [-z “NETCDF …” ]’ statement): `export NETCDF="/path/of/dir/"`.
-
-5. **Python Version:**
-   - Define `alias python=python3` in the .bashrc file if `python` is not defined.
-   - Change all instances of "python" to "python3" in the compiler file.
-
-6. **Handle Permission Errors:**
-   - Try compiling T-Route again after editing the compiler.
+**Handle Permission Errors:**
    - Use `sudo chmod 777 <path>` for "permission denied" errors (replace `<path>` with the relevant directory).
+   - If you are not allowed to execute a script, use `chmod +x /path/to/script.sh` to make the script executable.
 
-By following these instructions, you should successfully install and set up T-Route on your Linux system. For any issues or questions, feel free to seek assistance.
+By following these instructions, you should successfully install and set up T-Route on your Linux system. For any issues or questions, feel free to seek assistance or open an issue.
 
 
 ## Known issues
