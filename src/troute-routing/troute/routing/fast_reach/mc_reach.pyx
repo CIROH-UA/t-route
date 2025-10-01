@@ -87,14 +87,12 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
         float dt, qlat, dx, bw, tw, twcc, n, ncc, cs, s0, qdp, velp, depthp
         int i
 
-    
-    if giuh:
-        qlat_in = 0.0
-    else:
-        qlat_in = input_buf[i, 0] # n x 1   
 
     for i in range(nreach):
-        qlat = qlat_in # n x 1
+        if giuh:
+            qlat = 0.0
+        else:
+            qlat = input_buf[i, 0] # n x 1  
         dt = input_buf[i, 1] # n x 1
         dx = input_buf[i, 2] # n x 1
         bw = input_buf[i, 3]
