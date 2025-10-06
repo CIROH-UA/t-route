@@ -31,7 +31,7 @@ import troute.hyfeature_network_utilities as hnu
 import sys
 
 
-LOG = logging.getLogger('')
+LOG = logging.getLogger('__main__')
 
 '''
 High level orchestration of ngen t-route simulations for NWM application
@@ -113,20 +113,25 @@ def main_v04(argv):
     task_times['network_creation_time'] = network_end_time - network_start_time
     
     # Create run_sets: sets of forcing files for each loop
+    
     run_sets = network.build_forcing_sets()
+    LOG.info("finished network.build_forcing_sets() at %s", network_end_time - time.time())
     
     # Create da_sets: sets of TimeSlice files for each loop
     if "data_assimilation_parameters" in compute_parameters:
         da_sets = hnu.build_da_sets(data_assimilation_parameters, run_sets, network.t0)
+        LOG.info("finished hnu.build_da_sets() at %s", network_end_time - time.time())
         
     # Create parity_sets: sets of CHRTOUT files against which to compare t-route flows
     if output_parameters.get("wrf_hydro_parity_check"):
         parity_sets = nnu.build_parity_sets(parity_parameters, run_sets)
+        LOG.info("finished nnu.build_parity_sets() at %s", network_end_time - time.time())
     else:
         parity_sets = []
 
     # Create forcing data within network object for first loop iteration
     network.assemble_forcings(run_sets[0],)
+    LOG.info("finished network.assemble_forcings() at %s", network_end_time - time.time())
     
     # Create data assimilation object from da_sets for first loop iteration
     data_assimilation = DataAssimilation(
@@ -138,7 +143,8 @@ def main_v04(argv):
         value_dict=None,
         da_run=da_sets[0],
         )
-
+    
+    LOG.info("finished data_assimilation.__init__() at %s", network_end_time - time.time())
     
     forcing_end_time = time.time()
     task_times['forcing_time'] += forcing_end_time - network_end_time

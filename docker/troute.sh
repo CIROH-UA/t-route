@@ -32,7 +32,7 @@ if [ -z "$yaml_file_path" ]; then
 fi
 
 # Uncomment to print command
-#echo "docker run -v ${parent_folder}:${container_yaml_dir}/ -w ${container_yaml_dir} ${image_name} ${@/$arg/$yaml_filename}"
+echo "docker run -v ${parent_folder}:${container_yaml_dir}/ -w ${container_yaml_dir} ${image_name} ${@/$arg/$yaml_filename}"
 
 # Mount the YAML file, set the working directory, and run the Docker container with all arguments (replacing the full YAML path with just its filename)
 docker run -v "${parent_folder}:${container_yaml_dir}/" -w "${container_yaml_dir}" ${image_name} "${@/$arg/$yaml_filename}"
