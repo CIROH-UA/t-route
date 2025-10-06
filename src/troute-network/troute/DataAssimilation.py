@@ -1541,7 +1541,7 @@ def new_lastobs(run_results, time_increment):
                 np.array([rr[3][1],rr[3][2]]).T,
                 index=rr[3][0],
                 columns=["time_since_lastobs", "lastobs_discharge"]
-            )
+            ).astype({"time_since_lastobs": np.float32, "lastobs_discharge": np.float32})
             for rr in run_results
         ],
         copy=False,
