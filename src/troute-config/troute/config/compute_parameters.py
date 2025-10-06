@@ -64,9 +64,6 @@ class ComputeParameters(BaseModel):
     If True, Courant metrics are returnd with simulations. This only works for MC simulations
     """
 
-    giuh_node: Optional[bool] = None
-    """If True, flow q from the catchment is assumed to already be delayed using giuh and is added to qdc (flow downstream current timestep) instead of qlat (lateral flow into the reach).  This is only used for MC simulations. """
-
     restart_parameters: "RestartParameters" = Field(default_factory=dict)
     hybrid_parameters: "HybridParameters" = Field(default_factory=dict)
     forcing_parameters: "ForcingParameters" = Field(default_factory=dict)
@@ -408,6 +405,8 @@ class DataAssimilationParameters(BaseModel, extra='ignore'):
         "timeslice_lookback_hours", "qc_threshold", pre=True, allow_reuse=True
     )(coerce_none_to_default)
 
+MCKernelInputParameter = Literal["qlat", "qdc", "quc"]
+
 
 class ForcingParameters(BaseModel):
     """
@@ -453,6 +452,13 @@ class ForcingParameters(BaseModel):
     qlat_file_pattern_filter: Optional[str] = "*NEXOUT"
     """
     Globbing file pattern to identify q_lateral forcing files.
+    """
+    mc_kernel_input_parameter: MCKernelInputParameter = "qlat"
+    """
+    Determines where to add the value read in from the qlat_files to the muskingum cunge routing kernel.
+    qlat = set qlat input like normal, good for catchment / divide input files with models that give output as flow into the channel
+    qdc = sets qlat to 0, runs the kernel, then adds the value from file onto qdc. good for models that give output in terms of discharge at outlet
+    quc = sets qlat to 0, adds value to the top of the reach as upstream input. good for nexus file based input.
     """
 
     qlat_forcing_sets: Optional[List[QLateralForcingSet]] = None

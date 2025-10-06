@@ -67,7 +67,7 @@ cpdef object binary_find(object arr, object els):
 
 
 @cython.boundscheck(False)
-cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:] input_buf, float[:, :] output_buf, bint assume_short_ts, bint giuh = False, bint return_courant=False) nogil:
+cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:] input_buf, float[:, :] output_buf, bint assume_short_ts, int mc_kernel_input_enum, bint return_courant=False) nogil:
     """
     Kernel to compute reach.
     Input buffer is array matching following description:
@@ -79,20 +79,25 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
     Input is nxm (n reaches by m variables)
     Ouput is nx3 (n reaches by 3 return values)
         0: current flow, 1: current depth, 2: current velocity
+    mc_kernel_input_enum determines where to add "qlat"
+        0: qlat (default)
+        1: qdc (sets qlat to 0, runs kernel, directly adds input to calculated qdc output)
+        2: quc (sets qlat to 0, adds input to quc value, runs kernel)
     """
     cdef reach.QVD rv
     cdef reach.QVD *out = &rv
 
     cdef:
-        float dt, qlat, dx, bw, tw, twcc, n, ncc, cs, s0, qdp, velp, depthp
+        float dt, qlat, dx, bw, tw, twcc, n, ncc, cs, s0, qdp, velp, depthp, new_quc
         int i
-
+    
 
     for i in range(nreach):
-        if giuh:
+        if mc_kernel_input_enum != 0:
             qlat = 0.0
         else:
-            qlat = input_buf[i, 0] # n x 1  
+            qlat = input_buf[i, 0] # n x 1         
+            
         dt = input_buf[i, 1] # n x 1
         dx = input_buf[i, 2] # n x 1
         bw = input_buf[i, 3]
@@ -105,6 +110,9 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
         qdp = input_buf[i, 10]
         velp = input_buf[i, 11]
         depthp = input_buf[i, 12]
+        
+        if mc_kernel_input_enum == 2:
+            quc += input_buf[i, 0]
 
         reach.muskingcunge(
                     dt,
@@ -126,7 +134,7 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
 
 #        output_buf[i, 0] = quc = out.qdc # this will ignore short TS assumption at seg-to-set scale?
         
-        if giuh:
+        if mc_kernel_input_enum == 1:
             out.qdc += input_buf[i, 0]  
 
         output_buf[i, 0] = out.qdc
@@ -229,7 +237,7 @@ cpdef object compute_network_structured(
     bint return_courant=False,
     int da_check_gage = -1,
     bint from_files=True,
-    bint giuh_node = False,
+    str mc_input_parameter = "qlat",
     ):
     
     """
@@ -291,6 +299,14 @@ cpdef object compute_network_structured(
 
     cdef long sid
     cdef _MC_Segment segment
+    
+    cdef int mc_kernel_input_enum = 0 # 0 qlat, 1 qdc, 2 quc
+    if mc_input_parameter == "qlat":
+        mc_kernel_input_enum = 0
+    elif mc_input_parameter == "qdc":
+        mc_kernel_input_enum = 1
+    elif mc_input_parameter == "quc":
+        mc_kernel_input_enum = 2
     #pr.enable()
     #Preprocess the raw reaches, creating MC_Reach/MC_Segments
 
@@ -748,7 +764,7 @@ cpdef object compute_network_structured(
                 compute_reach_kernel(previous_upstream_flows, upstream_flows,
                                      r.reach.mc_reach.num_segments, buf_view,
                                      out_buf,
-                                     assume_short_ts, giuh = giuh_node)
+                                     assume_short_ts, mc_kernel_input_enum = mc_kernel_input_enum)
 
                 #Copy the output out
                 for _i in range(r.reach.mc_reach.num_segments):

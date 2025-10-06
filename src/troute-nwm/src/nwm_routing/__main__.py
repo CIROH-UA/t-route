@@ -62,7 +62,7 @@ def main_v04(argv):
     
     showtiming = log_parameters.get("showtiming", None)
     
-    giuh_node = compute_parameters.get("giuh_node")
+    mc_input_parameter = forcing_parameters.get("mc_kernel_input_parameter")
       
 
 
@@ -251,7 +251,7 @@ def main_v04(argv):
             network.unrefactored_topobathy_df,
             firstRun,
             logFileName,
-            giuh_node=giuh_node
+            mc_input_parameter=mc_input_parameter
         )
       
         # returns list, first item is run result, second item is subnetwork items
@@ -1169,7 +1169,7 @@ def nwm_route(
     logFileName='troute_run_log.txt',  
     flowveldepth_interorder={},
     from_files=False,
-    giuh_node = False
+    mc_input_parameter = "qlat"
 ):
 
     ################### Main Execution Loop across ordered networks      
@@ -1255,7 +1255,7 @@ def nwm_route(
         subnetwork_list,
         flowveldepth_interorder,
         from_files = from_files,
-        giuh_node = giuh_node
+        mc_input_parameter = mc_input_parameter
     )
     LOG.debug("MC computation complete in %s seconds." % (time.time() - start_time_mc))
     # returns list, first item is run result, second item is subnetwork items

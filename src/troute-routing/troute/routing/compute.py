@@ -542,7 +542,7 @@ def compute_nhd_routing_v02(
     subnetwork_list,
     flowveldepth_interorder = {},
     from_files = True,
-    giuh_node = False,
+    mc_input_parameter = "qlat", # default value here only so the parameters don't need reordering
 ):
     da_decay_coefficient = da_parameter_dict.get("da_decay_coefficient", 0)
     param_df["dt"] = dt
@@ -875,7 +875,7 @@ def compute_nhd_routing_v02(
                             assume_short_ts,
                             return_courant,
                             from_files = from_files,
-                            giuh_node=giuh_node
+                            mc_input_parameter=mc_input_parameter
                         )
                     )
                 results_subn[order] = parallel(jobs)
@@ -1180,7 +1180,7 @@ def compute_nhd_routing_v02(
                             assume_short_ts,
                             return_courant,
                             from_files=from_files,
-                            giuh_node=giuh_node
+                            mc_input_parameter=mc_input_parameter
                         )
                     )
 
@@ -1391,7 +1391,7 @@ def compute_nhd_routing_v02(
                         assume_short_ts,
                         return_courant,
                         from_files=from_files,
-                        giuh_node=giuh_node
+                        mc_input_parameter=mc_input_parameter
                     )
                 )
 
@@ -1576,7 +1576,7 @@ def compute_nhd_routing_v02(
                     assume_short_ts,
                     return_courant,
                     from_files=from_files,
-                    giuh_node=giuh_node
+                    mc_input_parameter=mc_input_parameter
                 )
             )
 
@@ -1736,7 +1736,7 @@ def compute_nhd_routing_v02(
                     },
                     assume_short_ts,
                     return_courant,
-                    giuh_node=giuh_node
+                    mc_input_parameter=mc_input_parameter
                 )
             )
 
