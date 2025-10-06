@@ -1,0 +1,44 @@
+name: 'Run Troute Pytest Suite'
+description: 'Run pytest for all troute modules'
+inputs:
+  docker-image:
+    description: 'Docker image to use for testing'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run troute-config tests
+      continue-on-error: true
+      shell: bash
+      run: docker run ${{ inputs.docker-image }} pytest test/troute-config
+
+    - name: Run troute-routing tests
+      continue-on-error: true
+      shell: bash
+      run: docker run ${{ inputs.docker-image }} pytest test/troute-routing
+
+    - name: Run troute-nwm tests
+      continue-on-error: true
+      shell: bash
+      run: docker run ${{ inputs.docker-image }} pytest test/troute-nwm
+
+    - name: Run troute-bmi tests
+      continue-on-error: true
+      shell: bash
+      run: docker run ${{ inputs.docker-image }} pytest test/troute-bmi
+
+    - name: Run src/troute-config tests
+      continue-on-error: true
+      shell: bash
+      run: docker run ${{ inputs.docker-image }} pytest src/troute-config
+
+    - name: Run src/troute-network tests
+      continue-on-error: true
+      shell: bash
+      run: docker run ${{ inputs.docker-image }} pytest src/troute-network
+
+    - name: Run src/troute-routing tests
+      continue-on-error: true
+      shell: bash
+      run: docker run ${{ inputs.docker-image }} pytest src/troute-routing
