@@ -1979,9 +1979,9 @@ def assemble_rfc_dataframes(rfc_timeseries_df, rfc_lake_gage_crosswalk, t0, rfc_
     reservoir_rfc_param_df['totalCounts'] = reservoir_rfc_param_df['totalCounts'] + (new_timeseries_idx - reservoir_rfc_param_df['timeseries_idx'])
     reservoir_rfc_param_df['timeseries_idx'] = new_timeseries_idx
     # Fill in NaNs with default values.
-    reservoir_rfc_param_df['use_rfc'].fillna(False, inplace=True)
-    reservoir_rfc_param_df['totalCounts'].fillna(0, inplace=True)
-    reservoir_rfc_param_df['da_timestep'].fillna(0, inplace=True)
+    reservoir_rfc_param_df['use_rfc'] = reservoir_rfc_param_df['use_rfc'].fillna(False)
+    reservoir_rfc_param_df['totalCounts'] = reservoir_rfc_param_df['totalCounts'].fillna(0)
+    reservoir_rfc_param_df['da_timestep'] = reservoir_rfc_param_df['da_timestep'].fillna(0)
     # Make sure columns are the correct types
     reservoir_rfc_param_df['totalCounts'] = reservoir_rfc_param_df['totalCounts'].astype(int)
     reservoir_rfc_param_df['da_timestep'] = reservoir_rfc_param_df['da_timestep'].astype(int)
