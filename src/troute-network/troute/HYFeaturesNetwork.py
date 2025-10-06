@@ -765,14 +765,21 @@ class HYFeaturesNetwork(AbstractNetwork):
                         areas = {}
                         for id, area in results:
                             areas[id] = area
+                            
+                qlat_column = self.forcing_parameters.get("qlat_file_value_col", None)
+                # the code in this if statement is very nextgen specific so change the default here
+                # rather than the default in config module for better compatibility
+                if qlat_column is None or qlat_column == "q_lateral":
+                    qlat_column = "Q_OUT"
+                    
                     
                 def process_file(f):
                     f = Path(f)
                     if qlat_file_pattern_filter=="nex-*":
                         df = pd.read_csv(f, names=['timestamp', 'qlat'], index_col=[0])
                     else:                        
-                        df = pd.read_csv(f,usecols= ['Time', 'Q_OUT'])
-                        df.rename(columns={'Time': 'timestamp', 'Q_OUT': 'qlat'}, inplace=True)
+                        df = pd.read_csv(f,usecols= ['Time', qlat_column])
+                        df.rename(columns={'Time': 'timestamp', qlat_column: 'qlat'}, inplace=True)
                         cat_id = f.stem
                         area = areas[cat_id]
                         # https://github.com/CIROH-UA/ngen/blob/77d8ea28502bf8db771529c5852d273785e26554/include/core/Layer.hpp#L142
