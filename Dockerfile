@@ -1,4 +1,4 @@
-FROM rockylinux:9.2 AS rocky-base
+FROM rockylinux:9.2 AS base
 RUN yum install -y epel-release
 RUN yum install -y netcdf netcdf-fortran netcdf-fortran-devel netcdf-mpich
 
@@ -36,4 +36,10 @@ RUN uv pip install --no-build-isolation --editable src/troute-config/
 RUN uv pip install --no-build-isolation --editable src/troute-nwm/
 # increase max open files soft limit
 RUN ulimit -n 10000
+
+
+FROM base AS test
+RUN uv pip install -e .[test]
+
+FROM base AS run
 ENTRYPOINT ["/t-route/.venv/bin/python", "-m", "nwm_routing"]
