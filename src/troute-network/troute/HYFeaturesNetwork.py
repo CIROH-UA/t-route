@@ -766,12 +766,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                         for id, area in results:
                             areas[id] = area
                             
-                qlat_column = self.forcing_parameters.get("qlat_file_value_col", None)
-                # the code in this if statement is very nextgen specific so change the default here
-                # rather than the default in config module for better compatibility
-                if qlat_column is None or qlat_column == "q_lateral":
-                    qlat_column = "Q_OUT"
-                    
+                qlat_column = self.forcing_parameters.get("qlat_file_value_col", None)                   
                     
                 def process_file(f):
                     f = Path(f)
