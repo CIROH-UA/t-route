@@ -1919,11 +1919,11 @@ def _read_timeseries_files(filepath, timeseries_dates, t0, final_persist_datetim
     file_list = (df['Datetime'] + '.60min.' + df['ID'] + '.RFCTimeSeries.ncdf').tolist()
     rfc_df = pd.DataFrame()
     for f in file_list:
-        ds = xr.open_dataset(filepath + '/' + f)
+        ds = xr.open_dataset(filepath + '/' + f, decode_timedelta=True)
         sliceStartTime = datetime.strptime(ds.attrs.get('sliceStartTimeUTC'), '%Y-%m-%d_%H:%M:%S')
         sliceTimeResolutionMinutes = ds.attrs.get('sliceTimeResolutionMinutes')
         df = ds.to_dataframe().reset_index().sort_values('forecastInd')[['stationId','discharges','synthetic_values','totalCounts','timeSteps']]
-        df['Datetime'] = pd.date_range(sliceStartTime, periods=df.shape[0], freq=sliceTimeResolutionMinutes+'T')
+        df['Datetime'] = pd.date_range(sliceStartTime, periods=df.shape[0], freq=sliceTimeResolutionMinutes+'min')
         # Filter out forecasts that go beyond the rfc_persist_days parameter. This isn't necessary, but removes
         # excess data, keeping the dataframe of observations as small as possible.
         df = df[df['Datetime']<final_persist_datetime]
