@@ -52,7 +52,7 @@ def read_geopkg(file_path, compute_parameters, waterbody_parameters, cpu_pool):
                       for key, pattern in layer_patterns.items()}
     
     # 3) Decide version by which pair is present (prefer v3.0 if both appear)
-    have_v30 = ('flowlines' in matched_layers) and ('flowline_attributes' in matched_layers)
+    have_v30 = (matched_layers.get('flowlines')) and (matched_layers.get('flowline_attributes'))
     have_v22 = not have_v30
     
     if have_v30:
@@ -67,7 +67,7 @@ def read_geopkg(file_path, compute_parameters, waterbody_parameters, cpu_pool):
             "(flowlines & flowline-attributes) or (flowpaths & flowpath-attributes). "
             f"Found layers: {available_layers}"
         ) 
-    
+
     if waterbody_parameters.get('break_network_at_waterbodies', False):
         layers_to_read.extend([ln for ln in ('lakes', 'nexus') if ln in matched_layers])
 
@@ -78,12 +78,12 @@ def read_geopkg(file_path, compute_parameters, waterbody_parameters, cpu_pool):
         data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_persistence_usace', False),
         data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_rfc_da', {}).get('reservoir_rfc_forecasts', False)
     ]):
-        if 'network' in matched_layers:
+        if matched_layers.get('lakes'):
             layers_to_read.append('network')
 
     hybrid_parameters = compute_parameters.get('hybrid_parameters', {})
     if hybrid_parameters.get('run_hybrid_routing', False) and 'nexus' not in layers_to_read:   #i think we can remove the latter check
-        if 'nexus' in matched_layers:
+        if matched_layers.get('nexus'):
             layers_to_read.append('nexus')
 
     # Function that read a layer from the geopackage
@@ -881,9 +881,12 @@ class HYFeaturesNetwork(AbstractNetwork):
             else:
                 for f in qlat_files:
                     if self._version_tag == 'v30':
-                        df = read_file_v3(self, f)
+                        #this is for version 3
+                        #we need to use reference index to get the feature_id from NHD dataset. 
+                        # So, need to loop through each segment_index and if multiple reference_ids are present, need to average it out.
+                        df = read_file_v3(self, f)   #this is for version 3
                     else:
-                        df = read_file(self, f)
+                        df = read_file(f)
                         df['feature_id'] = df['feature_id'].map(lambda x: int(str(x).removeprefix('nex-')) if str(x).startswith('nex') else int(x))
                     assert df[
                         "feature_id"
@@ -1076,7 +1079,9 @@ def read_file_v3(self, file_name):
         
         if 'q_lateral' not in nc.variables:
             nc = nc.assign(q_lateral = nc['qBucket'] +  nc['qSfcLatRunoff'])
-            
+        
+        #loops through each flowline_id in dataframe and averages the q_lateral values for all reference_ids associated with that flowline_id
+        #this can def be optimized
         dataframe_list = [
             (
                 idx,
@@ -1110,8 +1115,8 @@ def read_file(file_name):
         else:
             nc = nc.assign(q_lateral = nc['qBucket'] +  nc['qSfcLatRunoff'])
             df = nc.to_dataframe().reset_index()[['feature_id', 'q_lateral']]
-            
-        df = nc.to_pandas().reset_index()[['feature_id', 'q_lateral']]
+
+        df = nc.to_dataframe().reset_index()[['feature_id', 'q_lateral']]
         df.rename(columns={'q_lateral': f'{ts}'}, inplace=True)
         df.index.name = None
 

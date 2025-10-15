@@ -128,9 +128,6 @@ def main_v04(argv):
     # Create forcing data within network object for first loop iteration
     network.assemble_forcings(run_sets[0],)
     
-    # #this is necessary for v3 hyfeature hydrofabric
-    # if isinstance(network, HYFeaturesNetwork) and 'reference_id' in network.dataframe.columns:
-    #     network.dataframe = network.dataframe.drop(columns=['reference_id'])
     
     # Create data assimilation object from da_sets for first loop iteration
     data_assimilation = DataAssimilation(
