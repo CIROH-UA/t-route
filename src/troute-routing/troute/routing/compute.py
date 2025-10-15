@@ -546,6 +546,9 @@ def compute_nhd_routing_v02(
 ):
     da_decay_coefficient = da_parameter_dict.get("da_decay_coefficient", 0)
     param_df["dt"] = dt
+    if 'reference_id' in param_df.columns:
+        param_df = param_df.drop('reference_id', axis=1).drop_duplicates()
+
     param_df = param_df.astype("float32")
     
     start_time = time.time()
