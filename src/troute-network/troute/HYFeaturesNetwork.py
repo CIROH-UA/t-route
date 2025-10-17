@@ -1,3 +1,4 @@
+from multiprocessing import pool
 from .AbstractNetwork import AbstractNetwork
 import pandas as pd
 import numpy as np
@@ -30,6 +31,97 @@ def find_layer_name(layers, pattern):
     return None
 
 def read_geopkg(file_path, compute_parameters, waterbody_parameters, cpu_pool):
+    """Reads a HydroFabric GeoPackage and returns the relevant dataframes.
+    Assumes HydroFabric v2.2 structure."""
+    # Retrieve available layers from the GeoPackage
+    available_layers = list(gpd.list_layers(file_path)["name"])
+
+    # patterns for the layers we want to find
+    # $ in flowpaths to avoid double matching with flowpath_attributes
+    layer_patterns = {
+        'flowpaths': r'flow[-_]?paths?$|flow[-_]?lines?$',
+        'flowpath_attributes': r'flow[-_]?path[-_]?attributes?|flow[-_]?line[-_]?attributes?',
+        'lakes': r'lakes?',
+        'nexus': r'nexus?',
+        'network': r'network'
+    }
+
+    # Match available layers to the patterns
+    matched_layers = {key: find_layer_name(available_layers, pattern) 
+                      for key, pattern in layer_patterns.items()}
+    
+    layers_to_read = ['flowpaths', 'flowpath_attributes']
+    
+    if waterbody_parameters.get('break_network_at_waterbodies', False):
+        layers_to_read.extend(['lakes', 'nexus'])
+
+    data_assimilation_parameters = compute_parameters.get('data_assimilation_parameters', {})
+    if any([
+        data_assimilation_parameters.get('streamflow_da', {}).get('streamflow_nudging', False),
+        data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_persistence_usgs', False),
+        data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_persistence_usace', False),
+        data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_rfc_da', {}).get('reservoir_rfc_forecasts', False)
+    ]):
+        layers_to_read.append('network')
+
+    hybrid_parameters = compute_parameters.get('hybrid_parameters', {})
+    if hybrid_parameters.get('run_hybrid_routing', False) and 'nexus' not in layers_to_read:
+        layers_to_read.append('nexus')
+
+    # Function that read a layer from the geopackage
+    def read_layer(layer_name):
+        if layer_name:
+            try:
+                return gpd.read_file(file_path, layer=layer_name)
+            except Exception as e:
+                print(f"Error reading {layer_name}: {e}")
+                return pd.DataFrame()
+        return pd.DataFrame()
+       
+    # Retrieve geopackage information using matched layer names
+    if cpu_pool > 1:
+        with Parallel(n_jobs=min(cpu_pool, len(layers_to_read))) as parallel:
+            gpkg_list = parallel(delayed(read_layer)(matched_layers[layer]) for layer in layers_to_read)
+        
+        table_dict = {layers_to_read[i]: gpkg_list[i] for i in range(len(layers_to_read))}
+    else:
+        table_dict = {layer: read_layer(matched_layers[layer]) for layer in layers_to_read}
+    
+    # Handle different key column names between flowpaths and flowpath_attributes
+    flowpaths_df = table_dict.get('flowpaths', pd.DataFrame())
+    flowpath_attributes_df = table_dict.get('flowpath_attributes', pd.DataFrame())
+
+    # Check if 'link' column exists and rename it to 'id'
+    if 'link' in flowpath_attributes_df.columns and 'id' not in flowpath_attributes_df.columns:
+        flowpath_attributes_df.rename(columns={'link': 'id'}, inplace=True)
+
+    # Merge flowpaths and flowpath_attributes
+    if not flowpath_attributes_df.empty and not flowpaths_df.empty:
+        # hf v2.2 introduces duplicate columns in the different tables
+        unique_cols = set(flowpath_attributes_df.columns).difference(set(flowpaths_df.columns))
+        unique_cols.add("id")
+        flowpath_attributes_df = flowpath_attributes_df[list(unique_cols)]
+        flowpaths = pd.merge(
+            flowpaths_df, 
+            flowpath_attributes_df, 
+            on='id', 
+            how='inner'
+        )
+    elif not flowpaths_df.empty:
+        flowpaths = flowpaths_df
+    elif not flowpath_attributes_df.empty:
+        flowpaths = flowpath_attributes_df
+
+    lakes = table_dict.get('lakes', pd.DataFrame())
+    network = table_dict.get('network', pd.DataFrame())
+    nexus = table_dict.get('nexus', pd.DataFrame())
+
+    return flowpaths, lakes, network, nexus
+
+
+def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_pool):
+    
+    """This is a development version of read_geopkg that supports both hydrrofabric v2.2 and v3.0"""
     # Retrieve available layers from the GeoPackage
     available_layers = list(gpd.list_layers(file_path)["name"])
 
@@ -114,13 +206,6 @@ def read_geopkg(file_path, compute_parameters, waterbody_parameters, cpu_pool):
         #need this to merge on mainstem
         flowpaths_df = table_dict.get('flowpaths', pd.DataFrame())
 
-        #check if 'flowline_id' column exists and rename it to 'id'
-        # if 'flowline_id' in flowline_attributes_df.columns and 'id' not in flowline_attributes_df.columns:
-        #     flowline_attributes_df.rename(columns={'flowline_id': 'id'}, inplace=True)
-        
-        # if 'flowline_id' in flowlines_df.columns and 'id' not in flowlines_df.columns:
-        #     flowlines_df.rename(columns={'flowline_id': 'id'}, inplace=True)
-
         # Merge flowlines, flowlines_attributes, and flowpaths
         if not flowline_attributes_df.empty and not flowlines_df.empty and not flowpaths_df.empty:
             unique_cols = set(flowline_attributes_df.columns).difference(set(flowlines_df.columns))
@@ -134,13 +219,13 @@ def read_geopkg(file_path, compute_parameters, waterbody_parameters, cpu_pool):
             )
             #merging on flowpath df to get mainstem attribute
             df = pd.merge(df, flowpaths_df[['flowpath_id', 'mainstem']], on='flowpath_id', how='outer')
+            #renaming a few columns that aligns with the standard
+            df.rename(columns = {'flowline_id': 'id', 'flowline_toid' : 'toid', 'lengthm' : 'Length_m'}, inplace= True)
         elif not flowlines_df.empty:
             df = flowlines_df
         elif not flowline_attributes_df.empty:
             df = flowline_attributes_df
 
-        #renaming a few columns that aligns with the standard
-        df.rename(columns = {'flowline_id': 'id', 'flowline_toid' : 'toid', 'lengthm' : 'Length_m'}, inplace= True)
 
     else:
         flowpaths_df = table_dict.get('flowpaths', pd.DataFrame())
@@ -265,14 +350,13 @@ def read_ngen_waterbody_type_df(parm_file, lake_index_field="wb-id", lake_id_mas
         
     return df
 
-def read_geo_file(supernetwork_parameters, waterbody_parameters, compute_parameters, cpu_pool):
-        
+def read_geo_file(supernetwork_parameters, waterbody_parameters, compute_parameters, cpu_pool):    
     geo_file_path = supernetwork_parameters["geo_file_path"]
     df = lakes = network = pd.DataFrame()
     version_tag = 'v30'  #default version tag
     file_type = Path(geo_file_path).suffix
     if(file_type=='.gpkg'):        
-        df, lakes, network, nexus, version_tag = read_geopkg(geo_file_path,
+        df, lakes, network, nexus, version_tag = read_geopkg_dev(geo_file_path,
                                                        compute_parameters,
                                                        waterbody_parameters,
                                                        cpu_pool)
@@ -877,26 +961,24 @@ class HYFeaturesNetwork(AbstractNetwork):
                 with Parallel(n_jobs=-1) as p:
                     dfs = p(delayed(process_file)(f) for f in qlat_files)                
                 # lateral flows [m^3/s] are stored at NEXUS points with NEXUS ids
-                lateralflows_df = pd.concat(dfs, axis=0) 
+                lateralflows_df = pd.concat(dfs, axis=0)             
             else:
-                for f in qlat_files:
-                    if self._version_tag == 'v30':
-                        #this is for version 3
-                        #we need to use reference index to get the feature_id from NHD dataset. 
-                        # So, need to loop through each segment_index and if multiple reference_ids are present, need to average it out.
-                        df = read_file_v3(self, f)   #this is for version 3
-                    else:
-                        df = read_file(f)
-                        df['feature_id'] = df['feature_id'].map(lambda x: int(str(x).removeprefix('nex-')) if str(x).startswith('nex') else int(x))
-                    assert df[
-                        "feature_id"
-                    ].is_unique, f"'feature_id's must be unique. '{f!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
-                    df = df.set_index('feature_id')
-                    dfs.append(df)
-            
+                start_time = time.time()
+                if self._version_tag == 'v30':
+                    ref_lists = [list(map(int, row['reference_id'].split(','))) for _, row in self._dataframe.iterrows()]
+                    with Parallel(self.compute_parameters.get('cpu_pool', 1)) as parallel:
+                        dfs = parallel(delayed(read_file_v3)(self.dataframe, f, ref_lists) for f in qlat_files)
+                else:
+                    with Parallel(self.compute_parameters.get('cpu_pool', 1)) as parallel:
+                        dfs = parallel(delayed(read_file)(f) for f in qlat_files)
+
                 # lateral flows [m^3/s] are stored at NEXUS points with NEXUS ids (if using the nex-* prefix)
-                lateralflows_df = pd.concat(dfs, axis=1) 
-            
+                lateralflows_df = pd.concat(dfs, axis=1)
+                col_dt = pd.to_datetime(lateralflows_df.columns,format='%Y-%m-%dT%H:%M:%S.%f',errors='coerce')
+                lateralflows_df = lateralflows_df[lateralflows_df.columns[col_dt.argsort()]]
+                end_time = time.time()
+                print(f"Parallel read time for {len(qlat_files)} files: {end_time - start_time} seconds")
+                
             qlats_df = lateralflows_df
             
             if qlat_file_pattern_filter != "cat-*":
@@ -1066,7 +1148,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             self._rfc_lake_gage_crosswalk = inputs.get('rfc_lake_gage_crosswalk',None)
 
 
-def read_file_v3(self, file_name):
+def read_file_v3(dataframe, file_name, ref_lists):
     extension = file_name.suffix
     if extension=='.csv':
         df = pd.read_csv(file_name)
@@ -1084,20 +1166,18 @@ def read_file_v3(self, file_name):
         #this can def be optimized
         dataframe_list = [
             (
-                idx,
-                np.mean([
-                    nc.sel(feature_id=int(fid), method='nearest').q_lateral.values
-                    for fid in row['reference_id'].split(",")
-                ])
+                dataframe.index[i],
+                np.mean(nc.sel(feature_id=fid, method='nearest').q_lateral.values)
             )
-            for idx, row in self.dataframe.iterrows()
+            for i, fid in enumerate(ref_lists)
             ]
             
         df = pd.DataFrame(dataframe_list, columns=['feature_id', 'q_lateral'])     
         df = df.reset_index()[['feature_id', 'q_lateral']]
         df.rename(columns={'q_lateral': f'{ts}'}, inplace=True)
         df.index.name = None
-        
+        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{f!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
+        df = df.set_index('feature_id')
         return df
 
 def read_file(file_name):
@@ -1119,7 +1199,9 @@ def read_file(file_name):
         df = nc.to_dataframe().reset_index()[['feature_id', 'q_lateral']]
         df.rename(columns={'q_lateral': f'{ts}'}, inplace=True)
         df.index.name = None
-
+        df['feature_id'] = df['feature_id'].map(lambda x: int(str(x).removeprefix('nex-')) if str(x).startswith('nex') else int(x))
+        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{f!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
+        df = df.set_index('feature_id')
     return df
 
 def tailwaters(N):
