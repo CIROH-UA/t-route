@@ -128,7 +128,6 @@ def main_v04(argv):
     # Create forcing data within network object for first loop iteration
     network.assemble_forcings(run_sets[0],)
     
-    
     # Create data assimilation object from da_sets for first loop iteration
     data_assimilation = DataAssimilation(
         network,
