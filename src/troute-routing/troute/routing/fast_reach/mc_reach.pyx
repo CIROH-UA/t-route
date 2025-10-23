@@ -730,6 +730,11 @@ cpdef object compute_network_structured(
                 #Create compute reach kernel input buffer
                 for _i in range(r.reach.mc_reach.num_segments):
                     segment = get_mc_segment(r, _i)#r._segments[_i]
+                    # print(type(segment.id))
+                    if segment.id == 485397:
+                        print("Im triggered")
+                        print(qlat_array[ segment.id, <int>((timestep-1)/qts_subdivisions)])
+
                     buf_view[_i, 0] = qlat_array[ segment.id, <int>((timestep-1)/qts_subdivisions)]
                     buf_view[_i, 1] = segment.dt
                     buf_view[_i, 2] = segment.dx

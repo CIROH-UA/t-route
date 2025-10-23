@@ -549,6 +549,7 @@ def compute_nhd_routing_v02(
     if 'reference_id' in param_df.columns:
         param_df = param_df.drop('reference_id', axis=1).drop_duplicates()
 
+
     param_df = param_df.astype("float32")
     
     start_time = time.time()

@@ -133,6 +133,7 @@ def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_poo
         # v3.0 pair
         'flowlines': r'flow[-_]?lines?$',
         'flowline_attributes': r'flow[-_]?line[-_]?attributes?$',
+        'network_mod': r'network[-_]?mod?',
         # common optionals
         'lakes': r'lakes?$',
         'nexus': r'nexus?$',
@@ -149,12 +150,12 @@ def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_poo
     
     if have_v30:
         version_tag = 'v30'
-        layers_to_read = ['flowlines', 'flowline_attributes', 'flowpaths']
+        layers_to_read = ['flowlines', 'flowline_attributes', 'network_mod', 'flowpaths']
     elif have_v22:
         version_tag = 'v22'
         layers_to_read = ['flowpaths', 'flowpath_attributes']
     else:
-        raise RuntimeError(
+        raise runtimeError(
             "Could not detect HydroFabric version. Need either "
             "(flowlines & flowline-attributes) or (flowpaths & flowpath-attributes). "
             f"Found layers: {available_layers}"
@@ -211,20 +212,20 @@ def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_poo
             unique_cols = set(flowline_attributes_df.columns).difference(set(flowlines_df.columns))
             unique_cols.add("flowline_id")
             flowline_attributes_df = flowline_attributes_df[list(unique_cols)]
-            df = pd.merge(
+            flow_df = pd.merge(
                 flowlines_df,
                 flowline_attributes_df,
                 on='flowline_id',
                 how='inner'
             )
             #merging on flowpath df to get mainstem attribute
-            df = pd.merge(df, flowpaths_df[['flowpath_id', 'mainstem']], on='flowpath_id', how='outer')
+            flow_df = pd.merge(flow_df, flowpaths_df[['flowpath_id', 'mainstem']], on='flowpath_id', how='outer')
             #renaming a few columns that aligns with the standard
-            df.rename(columns = {'flowline_id': 'id', 'flowline_toid' : 'toid', 'lengthm' : 'Length_m'}, inplace= True)
+            flow_df.rename(columns = {'flowline_id': 'id', 'flowline_toid' : 'toid', 'lengthm' : 'Length_m'}, inplace= True)
         elif not flowlines_df.empty:
-            df = flowlines_df
+            flow_df = flowlines_df
         elif not flowline_attributes_df.empty:
-            df = flowline_attributes_df
+            flow_df = flowline_attributes_df
 
 
     else:
@@ -241,31 +242,36 @@ def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_poo
             unique_cols = set(flowpath_attributes_df.columns).difference(set(flowpaths_df.columns))
             unique_cols.add("id")
             flowpath_attributes_df = flowpath_attributes_df[list(unique_cols)]
-            df = pd.merge(
+            flow_df = pd.merge(
                 flowpaths_df, 
                 flowpath_attributes_df, 
                 on='id', 
                 how='inner'
             )
         elif not flowpaths_df.empty:
-            df = flowpaths_df
+            flow_df = flowpaths_df
         elif not flowpath_attributes_df.empty:
-            df = flowpath_attributes_df
+            flow_df = flowpath_attributes_df
          
     # gages: v3.0 often uses hl_reference; v2.2 may use gage/gages
-    if 'gage' not in df.columns:
-        if 'gages' in df.columns:
-            df = df.rename(columns={'gages': 'gage'})
-        elif 'hl_reference' in df.columns:
-            s = df['hl_reference'].fillna('').str.extract(r'(?:^|,)\s*nwis-(\d{8})', expand=True)[0]
-            df['gage'] = s
-            #maybe drop hl_reference after that?
+    if 'gage' not in flow_df.columns:
+        if 'gages' in flow_df.columns:
+            flow_df = flow_df.rename(columns={'gages': 'gage'})
+        elif 'hl_reference' in flow_df.columns:
+            s = flow_df['hl_reference'].fillna('').str.extract(r'(?:^|,)\s*nwis-(\d{8})', expand=True)[0]
+            flow_df['gage'] = s            #maybe drop hl_reference after that?
+
+
+    if 'WaterbodyID' not in flow_df.columns:
+        #fill with -9999
+        flow_df['WaterbodyID'] = -9999  #default null value for waterbody id in v3.0    
 
     lakes = table_dict.get('lakes', pd.DataFrame())
     network = table_dict.get('network', pd.DataFrame())
     nexus = table_dict.get('nexus', pd.DataFrame())
+    network_mod = table_dict.get('network_mod',   pd.DataFrame())
 
-    return df, lakes, network, nexus, version_tag
+    return flow_df, network_mod, lakes, network, nexus, version_tag
 
 def read_json(file_path, edge_list):
     dfs = []
@@ -290,11 +296,11 @@ def read_geojson(file_path):
     flowpaths = gpd.read_file(file_path)
     return flowpaths
 
-def numeric_id(flowpath):
-    id = flowpath['key'].split('-')[-1]
-    toid = flowpath['downstream'].split('-')[-1]
-    flowpath['key'] = int(float(id))
-    flowpath['downstream'] = int(float(toid))
+def numeric_id(flowpath, id_col='key', toid_col='downstream'):
+    id = flowpath[id_col].split('-')[-1]
+    toid = flowpath[toid_col].split('-')[-1]
+    flowpath[id_col] = int(float(id))
+    flowpath[toid_col] = int(float(toid))
     return flowpath
 
 def read_ngen_waterbody_df(parm_file, lake_index_field="wb-id", lake_id_mask=None):
@@ -356,19 +362,19 @@ def read_geo_file(supernetwork_parameters, waterbody_parameters, compute_paramet
     version_tag = 'v30'  #default version tag
     file_type = Path(geo_file_path).suffix
     if(file_type=='.gpkg'):        
-        df, lakes, network, nexus, version_tag = read_geopkg_dev(geo_file_path,
+        flow_df, network_mod, lakes, network, nexus, version_tag = read_geopkg_dev(geo_file_path,
                                                        compute_parameters,
                                                        waterbody_parameters,
                                                        cpu_pool)
     elif(file_type == '.json'):
         edge_list = supernetwork_parameters['flowpath_edge_list']
-        df = read_json(geo_file_path, edge_list)
+        flow_df = read_json(geo_file_path, edge_list)
     elif(file_type=='.geojson'):
-        df = read_geojson(geo_file_path)
+        flow_df = read_geojson(geo_file_path)
     else:
-        raise RuntimeError("Unsupported file type: {}".format(file_type))
+        raise runtimeError("Unsupported file type: {}".format(file_type))
 
-    return df, lakes, network, nexus, version_tag
+    return flow_df, network_mod, lakes, network, nexus, version_tag
 
 def load_bmi_data(value_dict, bmi_parameters,): 
     # Get the column names that we need from each table of the geopackage
@@ -456,14 +462,14 @@ class HYFeaturesNetwork(AbstractNetwork):
             if not from_files_copy:
                 from_files=True
             if from_files:
-                df, lakes, network, nexus, self._version_tag = read_geo_file(
+                flow_df, network_mod, lakes, network, nexus, self._version_tag = read_geo_file(
                     self.supernetwork_parameters,
                     self.waterbody_parameters,
                     self.compute_parameters,
                     self.compute_parameters.get('cpu_pool', 1)
                 )
             else:
-                df, lakes, network = load_bmi_data(
+                flow_df, lakes, network = load_bmi_data(
                     value_dict, 
                     bmi_parameters,
                     )
@@ -472,9 +478,9 @@ class HYFeaturesNetwork(AbstractNetwork):
                 from_files=False
 
             # Preprocess network objects
-            self.preprocess_network(df, nexus, self._version_tag)
+            self.preprocess_network(flow_df, network_mod, nexus)
 
-            self.crosswalk_nex_flowpath_poi(df, nexus, self._version_tag)
+            self.crosswalk_nex_flowpath_poi(flow_df, network_mod, nexus)
 
             # Preprocess waterbody objects
             self.preprocess_waterbodies(lakes, nexus)
@@ -531,18 +537,30 @@ class HYFeaturesNetwork(AbstractNetwork):
     def waterbody_null(self):
         return np.nan #pd.NA
     
+    @property
+    def version_tag(self):
+        return self._version_tag
     
-    def preprocess_network(self, df, nexus, version_tag):
+    
+    def preprocess_network(self, df, network_mod, nexus):
         self._dataframe = df
         cols = self.supernetwork_parameters.get('columns', None)
         if cols:
             col_idx = list(set(cols.values()).intersection(set(self.dataframe.columns)))
-            
-            if version_tag == 'v30':
+            if self.version_tag == 'v30':
+                #for v3.0 flowpath_id and flowpath_toid must be in the column section of yaml files.
+                #but traditionally, ngiab troute config doesn't produce that. So, this is an additonal
+                #layer of check. So, that we add them. We need these columns to determine terminal nexus
+                if 'flowpath_id' not in col_idx:
+                    col_idx.append('flowpath_id')
+                if 'flowpath_toid' not in col_idx:
+                    col_idx.append('flowpath_toid')
                 #reference_id column in version 3.0 helps us map feature_id in CHRTOUT files
                 col_idx.append('reference_id')
-                
-            self._dataframe = self.dataframe[col_idx]
+            
+            self._dataframe = self.dataframe[col_idx]  #come back to this later to find out what columns are needed
+
+
             # Rename parameter columns to standard names: from route-link names
             #        key: "link"
             #        downstream: "to"
@@ -561,20 +579,47 @@ class HYFeaturesNetwork(AbstractNetwork):
             #        cs: "ChSlp"  # TODO: rename to `sideslope`
             self._dataframe = self.dataframe.rename(columns=reverse_dict(cols))
         
-        if version_tag == 'v30':
-            #Downstream ids are type int and don't have a string prefix
-            self._flowpath_dict = dict(zip(self.dataframe.downstream, self.dataframe.key))
+        if self.version_tag == 'v30':
+            self._dataframe = self.dataframe.apply(numeric_id, axis=1, args=('flowpath_id', 'flowpath_toid'))
+            key_nums = self._dataframe.flowpath_id
+            down_nums = self._dataframe.flowpath_toid
+            mask = down_nums.isin(set(key_nums.dropna().tolist()))
+            terminal_nexus = set(down_nums[~mask].dropna().astype(int))
+            # self._flowpath_dict or self.downstream_flowpath_dict was previously used to assign 
+            # lateral flow from a nexus node to one of its upstream flowpaths. 
+            # This approach is now deprecated, as explained in build_qlateral_array(). 
+            # Instead, self._nexus_to_reach is used to correctly link the lateral flow at a nexus node 
+            # to its downstream reach.            
+            # make the flowpath linkage, ignore the terminal nexus              
+            self._flowpath_dict = {}
         
         else:  
         # Don't need the string prefix anymore, drop it
-            mask = ~ self.dataframe['downstream'].str.startswith("tnx")  
-            self._dataframe = self.dataframe.apply(numeric_id, axis=1)
-            self._flowpath_dict = dict(zip(self.dataframe.loc[mask].downstream, self.dataframe.loc[mask].key))
-            # make the flowpath linkage, ignore the terminal nexus
+            self._dataframe = self.dataframe.apply(numeric_id, axis=1, args=('key', 'downstream'))
+            # Boolean mask True to a row when 'downstream' nexus has an outgoing edge (non-terminal) and
+            # False when 'downstream' nexus is terminal. 
+            # Use this approach for masking, as some nexus points are not properly prefixed with "tnx-" 
+            # despite being terminal nodes.
+            # mask = ~ self.dataframe['downstream'].str.startswith("tnx")   
+            key_nums = self._dataframe.key
+            down_nums = self._dataframe.downstream
+            mask = down_nums.isin(set(key_nums.dropna().tolist()))
+            terminal_nexus = set(down_nums[~mask].dropna().astype(int))
 
         
         self._dataframe.set_index("key", inplace=True)
         self._dataframe = self.dataframe.sort_index()
+
+        if self.version_tag == 'v30':
+            id_num   = pd.to_numeric(network_mod["nexus_id"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
+            toid_num = pd.to_numeric(network_mod["ds_flowline"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
+            keep = (~id_num.isna()) & (~toid_num.isna()) & (~id_num.isin(terminal_nexus))
+            self._nexus_to_reach = dict(zip(id_num[keep].astype(int), toid_num[keep].astype(int))) 
+        else:
+            id_num   = pd.to_numeric(nexus["id"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
+            toid_num = pd.to_numeric(nexus["toid"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
+            keep = (~id_num.isna()) & (~toid_num.isna()) & (~id_num.isin(terminal_nexus))
+            self._nexus_to_reach = dict(zip(id_num[keep].astype(int), toid_num[keep].astype(int)))
         
         # **********  need to be included in flowpath_attributes  *************
         if 'alt' not in self.dataframe.columns:
@@ -618,16 +663,19 @@ class HYFeaturesNetwork(AbstractNetwork):
         # to the model engine/coastal models
         self._nexus_latlon = nexus
 
-    def crosswalk_nex_flowpath_poi(self, df, nexus, version_tag): 
-        #since toid is an int, here I'm guessing the filtered_df will be empty, so nexus dict will be empty
-        #but we can get _poi_nex_dict if we read the pois layer and pass it here. But do we need that?
-        if version_tag == 'v30':
-            self._poi_nex_dict = None
-            self._nexus_dict = None
+    def crosswalk_nex_flowpath_poi(self, df, network_mod, nexus): 
+        #we can get _poi_nex_dict if we read the pois layer and pass it here. But do we need that?
+        if self.version_tag == 'v30':
+            self._nexus_dict = df.groupby('flowpath_toid')['id'].apply(list).to_dict()  #dictionary of all flowlines flowing into each nexus (flowpath_toid: ids)
+            if 'poi_id' in network_mod.columns:
+                temp_network_mod = network_mod.drop_duplicates(subset=['nexus_id']).reset_index(drop=True)  #there are duplicates in nexus, dropping it for now
+                self._poi_nex_dict = temp_network_mod.groupby('poi_id')['nexus_id'].apply(list).to_dict()
+            else:
+                self._poi_nex_dict = None
         else: 
             masked_df = df['toid'].str.startswith(('nex-', 'tnex-'))   #shouldn't this be tnx?
             filtered_df = df[masked_df]
-            self._nexus_dict = filtered_df.groupby('toid')['id'].apply(list).to_dict()  ##{id: toid}
+            self._nexus_dict = filtered_df.groupby('toid')['id'].apply(list).to_dict()  #dictionary of all flowpaths flowing into each nexus (toid: ids)
             if 'poi_id' in nexus.columns:
                 self._poi_nex_dict = nexus.groupby('poi_id')['id'].apply(list).to_dict()
             else:
@@ -635,10 +683,6 @@ class HYFeaturesNetwork(AbstractNetwork):
 
     def preprocess_waterbodies(self, lakes, nexus):
         # If waterbodies are being simulated, create waterbody dataframes and dictionaries
-        
-        # break_network_at_waterbodies = self.waterbody_parameters.get(
-        #     "break_network_at_waterbodies", False
-        # )
         if not lakes.empty:
             if "hl_link" in lakes.columns: # v.2.1
                 self._waterbody_df = (
@@ -917,7 +961,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             qlat_input_folder = Path(qlat_input_folder)
             if "qlat_files" in run:
                 qlat_files = run.get("qlat_files")
-                qlat_files = [qlat_input_folder.joinpath(f) for f in qlat_files]
+                qlat_files = [qlat_input_folder.joinpath(f) for f in qlat_files]    #why dont we sort here?
             elif "qlat_file_pattern_filter" in run:
                 qlat_file_pattern_filter = run.get(
                     "qlat_file_pattern_filter", "*CHRT_OUT*"
@@ -961,7 +1005,13 @@ class HYFeaturesNetwork(AbstractNetwork):
                 with Parallel(n_jobs=-1) as p:
                     dfs = p(delayed(process_file)(f) for f in qlat_files)                
                 # lateral flows [m^3/s] are stored at NEXUS points with NEXUS ids
-                lateralflows_df = pd.concat(dfs, axis=0)             
+                lateralflows_df = pd.concat(dfs, axis=0)
+                # In rainfall-runoff model of ngen framework, the total runoff accumulated from each catchment that 
+                # drains into the corresponding nexus. Based on Fred’s recommendation, rather than treating lateral inflow as 
+                # a distributed side influx (m²/s) along the reach, we will inject it as a lumped discharge (m³/s) into 
+                # the flowline that lies immediately downstream of and is connected to the nexus.
+                lateralflows_df = lateralflows_df.rename(index=self._nexus_to_reach)
+        
             else:
                 start_time = time.time()
                 if self._version_tag == 'v30':
@@ -974,22 +1024,15 @@ class HYFeaturesNetwork(AbstractNetwork):
 
                 # lateral flows [m^3/s] are stored at NEXUS points with NEXUS ids (if using the nex-* prefix)
                 lateralflows_df = pd.concat(dfs, axis=1)
-                col_dt = pd.to_datetime(lateralflows_df.columns,format='%Y-%m-%dT%H:%M:%S.%f',errors='coerce')
-                lateralflows_df = lateralflows_df[lateralflows_df.columns[col_dt.argsort()]]
                 end_time = time.time()
                 print(f"Parallel read time for {len(qlat_files)} files: {end_time - start_time} seconds")
                 
-            qlats_df = lateralflows_df
-            
+            qlats_df = lateralflows_df             
             if qlat_file_pattern_filter != "cat-*":
                 # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids            
                 qlats_df.rename(index=self.downstream_flowpath_dict, inplace=True)
                 
-            qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]  #this is not necessary for v3
-            #we need to use reference index to get the feature_id from NHD dataset. So, need to loop through each segment_index and if multiple reference_ids 
-            # are present, need to average it out.
-            # qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]
-
+            qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]  #this is not necessary for v3 if read_file_v3 is used
 
             '''
             #For a terminal nexus, we want to include the lateral flow from the catchment contributing to that nexus
@@ -1160,7 +1203,7 @@ def read_file_v3(dataframe, file_name, ref_lists):
         ts = str(nc.get('time').values)
         
         if 'q_lateral' not in nc.variables:
-            nc = nc.assign(q_lateral = nc['qBucket'] +  nc['qSfcLatRunoff'])
+            nc = nc.assign(q_lateral = nc['qBucket'] +  nc['qSfcLatrunoff'])
         
         #loops through each flowline_id in dataframe and averages the q_lateral values for all reference_ids associated with that flowline_id
         #this can def be optimized
@@ -1193,7 +1236,7 @@ def read_file(file_name):
         if 'q_lateral' in nc.variables:
             df = nc.to_dataframe().reset_index()[['feature_id', 'q_lateral']]
         else:
-            nc = nc.assign(q_lateral = nc['qBucket'] +  nc['qSfcLatRunoff'])
+            nc = nc.assign(q_lateral = nc['qBucket'] +  nc['qSfcLatrunoff'])
             df = nc.to_dataframe().reset_index()[['feature_id', 'q_lateral']]
 
         df = nc.to_dataframe().reset_index()[['feature_id', 'q_lateral']]
