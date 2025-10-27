@@ -407,12 +407,55 @@ def load_bmi_data(value_dict, bmi_parameters,):
 
     return flowpaths, lakes, network
 
+def pseudo_headwater_interpolation(dataframe, network_mod, nexus_to_reach):
+    """
+    Makes a dictionary of all pseudo headwater reaches that needs interpolation
+    The returned dictionary looks like this: {flowline_id: 
+                                            {"contributing_area": }
+                                            {"target_flowline": (flowline_id, contributing_area)}
+    """
+    headwater_reaches = dataframe[~dataframe.index.isin(dataframe.downstream)].index.to_list()
+    network_mod = network_mod.drop_duplicates(subset=['nexus_id']).reset_index(drop=True).set_index("nexus_id", drop = True)
+
+    big_dict = {}
+    flowline_area_dict = dict(zip(dataframe.index, zip(dataframe['downstream'], np.float16(dataframe["areasqkm"]))))
+    for reach in headwater_reaches:
+        if dataframe.loc[reach]["flowpath_toid"] == 0:
+            continue
+        target_flowline = nexus_to_reach[dataframe.loc[reach]["flowpath_toid"]]
+        pseudo_headwater_list = []
+        area_list = []
+        current_flowline = reach
+        # target_dict = {"target": target_flowline}  #this is for making memory_efficient
+
+
+        while True:
+            if current_flowline == target_flowline:
+                area_list = np.cumsum(np.array(area_list)[::-1])[::-1]    #reverse cumulative sum
+                target_tuple = (target_flowline, flowline_area_dict[target_flowline][1] + area_list[-1])  #total sum 
+                small_dict = {flowline: {'contributing_area' : area, 'target_flowline': target_tuple} for flowline, area in zip(pseudo_headwater_list, area_list)}
+                big_dict.update(small_dict)
+                break
+
+            elif current_flowline in big_dict:
+                area_list = np.cumsum(np.array(area_list)[::-1])[::-1]
+                area_list = area_list + big_dict[current_flowline]["contributing_area"]   #get the cumulative area for already encountered reach but dont add that reach
+                target_tuple = (target_flowline, big_dict[current_flowline]['target_flowline'][1])
+                small_dict = {flowline: {'contributing_area' : area, 'target_flowline': target_tuple} for flowline, area in zip(pseudo_headwater_list, area_list)}
+                big_dict.update(small_dict)
+                break
+            pseudo_headwater_list.append(current_flowline)
+            area_list.append(flowline_area_dict[current_flowline][1])  #append the area
+            current_flowline = flowline_area_dict[current_flowline][0] #progress to next flowline
+        
+    return big_dict
+
 
 class HYFeaturesNetwork(AbstractNetwork):
     """
     
     """
-    __slots__ = ["_upstream_terminal", "_nexus_latlon", "_duplicate_ids_df", "_version_tag",]
+    __slots__ = ["_upstream_terminal", "_nexus_latlon", "_duplicate_ids_df", "_version_tag", "pseudo_headwater_dict"]
 
     def __init__(self, 
                  supernetwork_parameters, 
@@ -487,7 +530,9 @@ class HYFeaturesNetwork(AbstractNetwork):
 
             # Preprocess data assimilation objects #TODO: Move to DataAssimilation.py?
             self.preprocess_data_assimilation(network)
-        
+
+            self.pseudo_headwater_dict = pseudo_headwater_interpolation(self.dataframe, network_mod, self._nexus_to_reach)
+
             if self.preprocessing_parameters.get('preprocess_output_folder', None):
                 self.write_preprocessed_data()
 
@@ -557,6 +602,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                     col_idx.append('flowpath_toid')
                 #reference_id column in version 3.0 helps us map feature_id in CHRTOUT files
                 col_idx.append('reference_id')
+                col_idx.append('areasqkm')
             
             self._dataframe = self.dataframe[col_idx]  #come back to this later to find out what columns are needed
 
@@ -656,6 +702,8 @@ class HYFeaturesNetwork(AbstractNetwork):
         self._connections = extract_connections(
             self.dataframe, "downstream", terminal_codes=self.terminal_codes
         )
+        # pseudo_headwater_interpolation(self.dataframe, network_mod)
+        
         
         # Store a dataframe containing info about nexus points. This will be reprojected to lat/lon
         # and filtered for only diffusive domain tailwaters in AbstractNetwork.py.

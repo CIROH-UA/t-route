@@ -158,6 +158,10 @@ class NHDNetwork(AbstractNetwork):
         # Remove 'mainstem' col if it exists:
         if 'mainstem' in cols:
             del cols['mainstem']
+        if 'flowpath_id' in cols:
+            del cols['flowpath_id']
+        if 'flowpath_toid' in cols:
+            del cols['flowpath_toid']
         
         # numeric code used to indicate network terminal segments
         terminal_code = self.supernetwork_parameters.get("terminal_code", 0)
