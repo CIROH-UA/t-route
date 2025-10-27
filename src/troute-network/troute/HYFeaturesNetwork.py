@@ -531,7 +531,8 @@ class HYFeaturesNetwork(AbstractNetwork):
             # Preprocess data assimilation objects #TODO: Move to DataAssimilation.py?
             self.preprocess_data_assimilation(network)
 
-            self.pseudo_headwater_dict = pseudo_headwater_interpolation(self.dataframe, network_mod, self._nexus_to_reach)
+            if self._version_tag == 'v30':
+                self.pseudo_headwater_dict = pseudo_headwater_interpolation(self.dataframe, network_mod, self._nexus_to_reach)
 
             if self.preprocessing_parameters.get('preprocess_output_folder', None):
                 self.write_preprocessed_data()
@@ -651,6 +652,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             down_nums = self._dataframe.downstream
             mask = down_nums.isin(set(key_nums.dropna().tolist()))
             terminal_nexus = set(down_nums[~mask].dropna().astype(int))
+            self._flowpath_dict = dict(zip(self.dataframe.loc[mask].downstream, self.dataframe.loc[mask].key))
 
         
         self._dataframe.set_index("key", inplace=True)
@@ -1059,7 +1061,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                 # a distributed side influx (m²/s) along the reach, we will inject it as a lumped discharge (m³/s) into 
                 # the flowline that lies immediately downstream of and is connected to the nexus.
                 lateralflows_df = lateralflows_df.rename(index=self._nexus_to_reach)
-        
+
             else:
                 start_time = time.time()
                 if self._version_tag == 'v30':
@@ -1079,7 +1081,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             if qlat_file_pattern_filter != "cat-*":
                 # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids            
                 qlats_df.rename(index=self.downstream_flowpath_dict, inplace=True)
-                
+            
             qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]  #this is not necessary for v3 if read_file_v3 is used
 
             '''
@@ -1275,18 +1277,20 @@ def read_file(file_name):
     extension = file_name.suffix
     if extension=='.csv':
         df = pd.read_csv(file_name)
+        df['feature_id'] = df['feature_id'].map(lambda x: int(str(x).removeprefix('nex-')) if str(x).startswith('nex') else int(x))
+        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{f!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
+        df = df.set_index('feature_id')
     elif extension=='.parquet':
         df = pq.read_table(file_name).to_pandas().reset_index()
         df.index.name = None
+        df['feature_id'] = df['feature_id'].map(lambda x: int(str(x).removeprefix('nex-')) if str(x).startswith('nex') else int(x))
+        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{f!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
+        df = df.set_index('feature_id')
     elif extension=='.nc' or extension=='.CHRTOUT_DOMAIN1':           #add or '.CHRT'
         nc = xr.open_dataset(file_name)
         ts = str(nc.get('time').values)
-        if 'q_lateral' in nc.variables:
-            df = nc.to_dataframe().reset_index()[['feature_id', 'q_lateral']]
-        else:
+        if 'q_lateral' not in nc.variables:
             nc = nc.assign(q_lateral = nc['qBucket'] +  nc['qSfcLatrunoff'])
-            df = nc.to_dataframe().reset_index()[['feature_id', 'q_lateral']]
-
         df = nc.to_dataframe().reset_index()[['feature_id', 'q_lateral']]
         df.rename(columns={'q_lateral': f'{ts}'}, inplace=True)
         df.index.name = None
