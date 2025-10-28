@@ -704,8 +704,6 @@ class HYFeaturesNetwork(AbstractNetwork):
         self._connections = extract_connections(
             self.dataframe, "downstream", terminal_codes=self.terminal_codes
         )
-        # pseudo_headwater_interpolation(self.dataframe, network_mod)
-        
         
         # Store a dataframe containing info about nexus points. This will be reprojected to lat/lon
         # and filtered for only diffusive domain tailwaters in AbstractNetwork.py.
