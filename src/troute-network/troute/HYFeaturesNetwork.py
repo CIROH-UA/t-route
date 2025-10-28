@@ -155,7 +155,7 @@ def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_poo
         version_tag = 'v22'
         layers_to_read = ['flowpaths', 'flowpath_attributes']
     else:
-        raise runtimeError(
+        raise RuntimeError(
             "Could not detect HydroFabric version. Need either "
             "(flowlines & flowline-attributes) or (flowpaths & flowpath-attributes). "
             f"Found layers: {available_layers}"
@@ -372,7 +372,7 @@ def read_geo_file(supernetwork_parameters, waterbody_parameters, compute_paramet
     elif(file_type=='.geojson'):
         flow_df = read_geojson(geo_file_path)
     else:
-        raise runtimeError("Unsupported file type: {}".format(file_type))
+        raise RuntimeError("Unsupported file type: {}".format(file_type))
 
     return flow_df, network_mod, lakes, network, nexus, version_tag
 
@@ -407,7 +407,7 @@ def load_bmi_data(value_dict, bmi_parameters,):
 
     return flowpaths, lakes, network
 
-def pseudo_headwater_interpolation(dataframe, network_mod, nexus_to_reach):
+def pseudo_headwater_interpolation(dataframe, network_mod, nexus_to_reach, terminal_nexus):
     """
     Makes a dictionary of all pseudo headwater reaches that needs interpolation
     The returned dictionary looks like this: {flowline_id: 
@@ -417,10 +417,10 @@ def pseudo_headwater_interpolation(dataframe, network_mod, nexus_to_reach):
     headwater_reaches = dataframe[~dataframe.index.isin(dataframe.downstream)].index.to_list()
     network_mod = network_mod.drop_duplicates(subset=['nexus_id']).reset_index(drop=True).set_index("nexus_id", drop = True)
 
-    big_dict = {}
+    pseudo_headwater_dict = {}
     flowline_area_dict = dict(zip(dataframe.index, zip(dataframe['downstream'], np.float16(dataframe["areasqkm"]))))
     for reach in headwater_reaches:
-        if dataframe.loc[reach]["flowpath_toid"] == 0:
+        if dataframe.loc[reach]["flowpath_toid"] in terminal_nexus:
             continue
         target_flowline = nexus_to_reach[dataframe.loc[reach]["flowpath_toid"]]
         pseudo_headwater_list = []
@@ -433,29 +433,30 @@ def pseudo_headwater_interpolation(dataframe, network_mod, nexus_to_reach):
             if current_flowline == target_flowline:
                 area_list = np.cumsum(np.array(area_list)[::-1])[::-1]    #reverse cumulative sum
                 target_tuple = (target_flowline, flowline_area_dict[target_flowline][1] + area_list[-1])  #total sum 
-                small_dict = {flowline: {'contributing_area' : area, 'target_flowline': target_tuple} for flowline, area in zip(pseudo_headwater_list, area_list)}
-                big_dict.update(small_dict)
+                headwater_specific_dict = {flowline: {'contributing_area' : area, 'target_flowline': target_tuple} for flowline, area in zip(pseudo_headwater_list, area_list)}
+                pseudo_headwater_dict.update(headwater_specific_dict)
                 break
 
-            elif current_flowline in big_dict:
+            elif current_flowline in pseudo_headwater_dict:
                 area_list = np.cumsum(np.array(area_list)[::-1])[::-1]
-                area_list = area_list + big_dict[current_flowline]["contributing_area"]   #get the cumulative area for already encountered reach but dont add that reach
-                target_tuple = (target_flowline, big_dict[current_flowline]['target_flowline'][1])
-                small_dict = {flowline: {'contributing_area' : area, 'target_flowline': target_tuple} for flowline, area in zip(pseudo_headwater_list, area_list)}
-                big_dict.update(small_dict)
+                area_list = area_list + pseudo_headwater_dict[current_flowline]["contributing_area"]   #get the cumulative area for already encountered reach but dont add that reach
+                target_tuple = (target_flowline, pseudo_headwater_dict[current_flowline]['target_flowline'][1])
+                headwater_specific_dict = {flowline: {'contributing_area' : area, 'target_flowline': target_tuple} for flowline, area in zip(pseudo_headwater_list, area_list)}
+                pseudo_headwater_dict.update(headwater_specific_dict)
                 break
+
             pseudo_headwater_list.append(current_flowline)
             area_list.append(flowline_area_dict[current_flowline][1])  #append the area
             current_flowline = flowline_area_dict[current_flowline][0] #progress to next flowline
         
-    return big_dict
+    return pseudo_headwater_dict
 
 
 class HYFeaturesNetwork(AbstractNetwork):
     """
     
     """
-    __slots__ = ["_upstream_terminal", "_nexus_latlon", "_duplicate_ids_df", "_version_tag", "pseudo_headwater_dict"]
+    __slots__ = ["_upstream_terminal", "_nexus_latlon", "_duplicate_ids_df", "_version_tag", "pseudo_headwater_dict", "terminal_nexus"]
 
     def __init__(self, 
                  supernetwork_parameters, 
@@ -532,7 +533,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             self.preprocess_data_assimilation(network)
 
             if self._version_tag == 'v30':
-                self.pseudo_headwater_dict = pseudo_headwater_interpolation(self.dataframe, network_mod, self._nexus_to_reach)
+                self.pseudo_headwater_dict = pseudo_headwater_interpolation(self.dataframe, network_mod, self._nexus_to_reach, self.terminal_nexus)
 
             if self.preprocessing_parameters.get('preprocess_output_folder', None):
                 self.write_preprocessed_data()
@@ -631,7 +632,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             key_nums = self._dataframe.flowpath_id
             down_nums = self._dataframe.flowpath_toid
             mask = down_nums.isin(set(key_nums.dropna().tolist()))
-            terminal_nexus = set(down_nums[~mask].dropna().astype(int))
+            self.terminal_nexus = set(down_nums[~mask].dropna().astype(int))
             # self._flowpath_dict or self.downstream_flowpath_dict was previously used to assign 
             # lateral flow from a nexus node to one of its upstream flowpaths. 
             # This approach is now deprecated, as explained in build_qlateral_array(). 
@@ -639,7 +640,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             # to its downstream reach.            
             # make the flowpath linkage, ignore the terminal nexus              
             self._flowpath_dict = {}
-        
+
         else:  
         # Don't need the string prefix anymore, drop it
             self._dataframe = self.dataframe.apply(numeric_id, axis=1, args=('key', 'downstream'))
@@ -651,22 +652,21 @@ class HYFeaturesNetwork(AbstractNetwork):
             key_nums = self._dataframe.key
             down_nums = self._dataframe.downstream
             mask = down_nums.isin(set(key_nums.dropna().tolist()))
-            terminal_nexus = set(down_nums[~mask].dropna().astype(int))
+            self.terminal_nexus = set(down_nums[~mask].dropna().astype(int))
             self._flowpath_dict = dict(zip(self.dataframe.loc[mask].downstream, self.dataframe.loc[mask].key))
 
-        
         self._dataframe.set_index("key", inplace=True)
         self._dataframe = self.dataframe.sort_index()
 
         if self.version_tag == 'v30':
             id_num   = pd.to_numeric(network_mod["nexus_id"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
             toid_num = pd.to_numeric(network_mod["ds_flowline"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
-            keep = (~id_num.isna()) & (~toid_num.isna()) & (~id_num.isin(terminal_nexus))
+            keep = (~id_num.isna()) & (~toid_num.isna()) & (~id_num.isin(self.terminal_nexus))
             self._nexus_to_reach = dict(zip(id_num[keep].astype(int), toid_num[keep].astype(int))) 
         else:
             id_num   = pd.to_numeric(nexus["id"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
             toid_num = pd.to_numeric(nexus["toid"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
-            keep = (~id_num.isna()) & (~toid_num.isna()) & (~id_num.isin(terminal_nexus))
+            keep = (~id_num.isna()) & (~toid_num.isna()) & (~id_num.isin(self.terminal_nexus))
             self._nexus_to_reach = dict(zip(id_num[keep].astype(int), toid_num[keep].astype(int)))
         
         # **********  need to be included in flowpath_attributes  *************
@@ -1075,11 +1075,15 @@ class HYFeaturesNetwork(AbstractNetwork):
                 end_time = time.time()
                 print(f"Parallel read time for {len(qlat_files)} files: {end_time - start_time} seconds")
                 
-            qlats_df = lateralflows_df             
+            qlats_df = lateralflows_df
+
+            #this line is very important as this decides whether to route v2.2 the old way or the new way. If
+            #this line is commented out or if _flowpath_dict is set to an empty directory, this will route the new way
+            #otherwise it will route the old way
             if qlat_file_pattern_filter != "cat-*":
-                # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids            
+                # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids
+                # version3.0 should be unaffected by this as _flowpath_dict is empty            
                 qlats_df.rename(index=self.downstream_flowpath_dict, inplace=True)
-            
             qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]  #this is not necessary for v3 if read_file_v3 is used
 
             '''
@@ -1243,9 +1247,13 @@ def read_file_v3(dataframe, file_name, ref_lists):
     extension = file_name.suffix
     if extension=='.csv':
         df = pd.read_csv(file_name)
+        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{file_name!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
+        df = df.set_index('feature_id')
     elif extension=='.parquet':
         df = pq.read_table(file_name).to_pandas().reset_index()
         df.index.name = None
+        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{file_name!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
+        df = df.set_index('feature_id')
     elif extension=='.nc' or extension=='.CHRTOUT_DOMAIN1':           #add or '.CHRT'
         nc = xr.open_dataset(file_name)
         ts = str(nc.get('time').values)
@@ -1267,7 +1275,7 @@ def read_file_v3(dataframe, file_name, ref_lists):
         df = df.reset_index()[['feature_id', 'q_lateral']]
         df.rename(columns={'q_lateral': f'{ts}'}, inplace=True)
         df.index.name = None
-        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{f!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
+        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{file_name!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
         df = df.set_index('feature_id')
         return df
 
@@ -1276,13 +1284,13 @@ def read_file(file_name):
     if extension=='.csv':
         df = pd.read_csv(file_name)
         df['feature_id'] = df['feature_id'].map(lambda x: int(str(x).removeprefix('nex-')) if str(x).startswith('nex') else int(x))
-        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{f!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
+        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{file_name!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
         df = df.set_index('feature_id')
     elif extension=='.parquet':
         df = pq.read_table(file_name).to_pandas().reset_index()
         df.index.name = None
         df['feature_id'] = df['feature_id'].map(lambda x: int(str(x).removeprefix('nex-')) if str(x).startswith('nex') else int(x))
-        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{f!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
+        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{file_name!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
         df = df.set_index('feature_id')
     elif extension=='.nc' or extension=='.CHRTOUT_DOMAIN1':           #add or '.CHRT'
         nc = xr.open_dataset(file_name)
@@ -1293,7 +1301,7 @@ def read_file(file_name):
         df.rename(columns={'q_lateral': f'{ts}'}, inplace=True)
         df.index.name = None
         df['feature_id'] = df['feature_id'].map(lambda x: int(str(x).removeprefix('nex-')) if str(x).startswith('nex') else int(x))
-        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{f!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
+        assert df["feature_id"].is_unique, f"'feature_id's must be unique. '{file_name!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
         df = df.set_index('feature_id')
     return df
 
