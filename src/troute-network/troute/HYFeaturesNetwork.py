@@ -1080,10 +1080,10 @@ class HYFeaturesNetwork(AbstractNetwork):
             #this line is very important as this decides whether to route v2.2 the old way or the new way. If
             #this line is commented out or if _flowpath_dict is set to an empty directory, this will route the new way
             #otherwise it will route the old way
-            if qlat_file_pattern_filter != "cat-*":
-                # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids
-                # version3.0 should be unaffected by this as _flowpath_dict is empty            
-                qlats_df.rename(index=self.downstream_flowpath_dict, inplace=True)
+            # if qlat_file_pattern_filter != "cat-*":
+            #     # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids
+            #     # version3.0 should be unaffected by this as _flowpath_dict is empty            
+            #     qlats_df.rename(index=self.downstream_flowpath_dict, inplace=True)
             qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]  #this is not necessary for v3 if read_file_v3 is used
 
             '''
