@@ -150,10 +150,10 @@ def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_poo
     
     if have_v30:
         version_tag = 'v30'
-        layers_to_read = ['flowlines', 'flowline_attributes', 'network_mod', 'flowpaths']
+        layers_to_read = ['flowlines', 'flowline_attributes', 'network_mod', 'nexus', 'flowpaths']
     elif have_v22:
         version_tag = 'v22'
-        layers_to_read = ['flowpaths', 'flowpath_attributes']
+        layers_to_read = ['flowpaths', 'flowpath_attributes', 'nexus']
     else:
         raise RuntimeError(
             "Could not detect HydroFabric version. Need either "
@@ -162,7 +162,8 @@ def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_poo
         ) 
 
     if waterbody_parameters.get('break_network_at_waterbodies', False):
-        layers_to_read.extend([ln for ln in ('lakes', 'nexus') if ln in matched_layers])
+        if 'lakes' in matched_layers:
+            layers_to_read.append('lakes')
 
     data_assimilation_parameters = compute_parameters.get('data_assimilation_parameters', {})
     if any([
@@ -173,11 +174,6 @@ def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_poo
     ]):
         if matched_layers.get('lakes'):
             layers_to_read.append('network')
-
-    hybrid_parameters = compute_parameters.get('hybrid_parameters', {})
-    if hybrid_parameters.get('run_hybrid_routing', False) and 'nexus' not in layers_to_read:   #i think we can remove the latter check
-        if matched_layers.get('nexus'):
-            layers_to_read.append('nexus')
 
     # Function that read a layer from the geopackage
     def read_layer(layer_name):
