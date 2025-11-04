@@ -893,10 +893,7 @@ class HYFeaturesNetwork(AbstractNetwork):
         # self._dataframe = self.dataframe.drop('waterbody', axis=1).drop_duplicates()
 
     def preprocess_data_assimilation(self, network):
-        break_network_at_waterbodies = self.waterbody_parameters.get(
-            "break_network_at_waterbodies", False
-        )
-        if not network.empty and break_network_at_waterbodies:
+        if not network.empty:
             gages_df = network[['id','hl_uri','hydroseq']].drop_duplicates()
             # clear out missing values
             gages_df = gages_df[~gages_df['hl_uri'].isnull()]
