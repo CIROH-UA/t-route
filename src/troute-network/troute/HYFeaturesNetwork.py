@@ -766,13 +766,21 @@ class HYFeaturesNetwork(AbstractNetwork):
                         for id, area in results:
                             areas[id] = area
                             
-                qlat_column = self.forcing_parameters.get("qlat_file_value_col", None)                   
-                    
+                qlat_column = self.forcing_parameters.get("qlat_file_value_col", None)
+
+                if qlat_file_pattern_filter == "cat-*":
+                    if qlat_column not in pd.read_csv(qlat_files[0], nrows=0).columns:
+                        raise RuntimeError(
+                            "When using qlat_file_pattern_filter as 'cat-*', qlat_file_value_col must be properly specified in the yaml file. "
+                            f"Either qlat_file_value_col is not specified and defaulted to '{qlat_column}' or the specified qlat_file_value_col does not exist in the column of "
+                            "lateral flow files."
+                        )
+
                 def process_file(f):
                     f = Path(f)
                     if qlat_file_pattern_filter=="nex-*":
                         df = pd.read_csv(f, names=['timestamp', 'qlat'], index_col=[0])
-                    else:                        
+                    else:              
                         df = pd.read_csv(f,usecols= ['Time', qlat_column])
                         df.rename(columns={'Time': 'timestamp', qlat_column: 'qlat'}, inplace=True)
                         cat_id = f.stem
