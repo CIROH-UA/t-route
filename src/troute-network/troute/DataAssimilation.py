@@ -1541,7 +1541,7 @@ def new_lastobs(run_results, time_increment):
                 np.array([rr[3][1],rr[3][2]]).T,
                 index=rr[3][0],
                 columns=["time_since_lastobs", "lastobs_discharge"]
-            )
+            ).astype({"time_since_lastobs": np.float32, "lastobs_discharge": np.float32})
             for rr in run_results
         ],
         copy=False,
@@ -1919,11 +1919,11 @@ def _read_timeseries_files(filepath, timeseries_dates, t0, final_persist_datetim
     file_list = (df['Datetime'] + '.60min.' + df['ID'] + '.RFCTimeSeries.ncdf').tolist()
     rfc_df = pd.DataFrame()
     for f in file_list:
-        ds = xr.open_dataset(filepath + '/' + f)
+        ds = xr.open_dataset(filepath + '/' + f, decode_timedelta=True)
         sliceStartTime = datetime.strptime(ds.attrs.get('sliceStartTimeUTC'), '%Y-%m-%d_%H:%M:%S')
         sliceTimeResolutionMinutes = ds.attrs.get('sliceTimeResolutionMinutes')
         df = ds.to_dataframe().reset_index().sort_values('forecastInd')[['stationId','discharges','synthetic_values','totalCounts','timeSteps']]
-        df['Datetime'] = pd.date_range(sliceStartTime, periods=df.shape[0], freq=sliceTimeResolutionMinutes+'T')
+        df['Datetime'] = pd.date_range(sliceStartTime, periods=df.shape[0], freq=sliceTimeResolutionMinutes+'min')
         # Filter out forecasts that go beyond the rfc_persist_days parameter. This isn't necessary, but removes
         # excess data, keeping the dataframe of observations as small as possible.
         df = df[df['Datetime']<final_persist_datetime]
@@ -1979,9 +1979,9 @@ def assemble_rfc_dataframes(rfc_timeseries_df, rfc_lake_gage_crosswalk, t0, rfc_
     reservoir_rfc_param_df['totalCounts'] = reservoir_rfc_param_df['totalCounts'] + (new_timeseries_idx - reservoir_rfc_param_df['timeseries_idx'])
     reservoir_rfc_param_df['timeseries_idx'] = new_timeseries_idx
     # Fill in NaNs with default values.
-    reservoir_rfc_param_df['use_rfc'].fillna(False, inplace=True)
-    reservoir_rfc_param_df['totalCounts'].fillna(0, inplace=True)
-    reservoir_rfc_param_df['da_timestep'].fillna(0, inplace=True)
+    reservoir_rfc_param_df['use_rfc'] = reservoir_rfc_param_df['use_rfc'].fillna(False)
+    reservoir_rfc_param_df['totalCounts'] = reservoir_rfc_param_df['totalCounts'].fillna(0)
+    reservoir_rfc_param_df['da_timestep'] = reservoir_rfc_param_df['da_timestep'].fillna(0)
     # Make sure columns are the correct types
     reservoir_rfc_param_df['totalCounts'] = reservoir_rfc_param_df['totalCounts'].astype(int)
     reservoir_rfc_param_df['da_timestep'] = reservoir_rfc_param_df['da_timestep'].astype(int)
