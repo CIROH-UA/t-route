@@ -1048,8 +1048,6 @@ class HYFeaturesNetwork(AbstractNetwork):
 
         self._qlateral = qlats_df
 
-        qlats_df.to_csv("qlateral_debug_old.csv")
-
     ######################################################################
     # FIXME Temporary solution to hydrofabric issues.
     def bandaid(
