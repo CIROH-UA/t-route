@@ -717,6 +717,8 @@ class HYFeaturesNetwork(AbstractNetwork):
         nts = run.get("nts", 1)
         qlat_input_folder = run.get("qlat_input_folder", None)
         qlat_input_file = run.get("qlat_input_file", None)
+        max_col = 1 + nts // qts_subdivisions
+        col_t0 =self.t0.strftime('%Y%m%d%H%M') 
 
         if qlat_input_folder:
             qlat_input_folder = Path(qlat_input_folder)
@@ -728,8 +730,6 @@ class HYFeaturesNetwork(AbstractNetwork):
                     "qlat_file_pattern_filter", "*CHRT_OUT*"
                 )
                 qlat_files = sorted(qlat_input_folder.glob(qlat_file_pattern_filter))
-            
-            dfs=[]
             
             #FIXME Temporary solution to allow t-route to use ngen nex-* output files as forcing files
             # This capability should be here, but we need to think through how to handle all of this 
@@ -836,6 +836,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                 columns=range(nts // qts_subdivisions),
                 dtype="float32",
             )
+        
 
         # TODO: Make a more sophisticated date-based filter
         max_col = 1 + nts // qts_subdivisions
@@ -846,6 +847,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]
 
         self._qlateral = qlats_df
+        qlats_df.to_csv('qlateral_debug_old.csv')
 
     ######################################################################
     #FIXME Temporary solution to hydrofabric issues.
