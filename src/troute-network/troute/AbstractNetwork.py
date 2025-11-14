@@ -962,7 +962,8 @@ def split_csv_file(nexus_file, binary_folder):
 def rewrite_to_parquet(file_args, binary_folder):
     tempfile_id, output_file_id = file_args
     # Rewrite the csv file to parquet
-    df = pd.read_csv(f'{binary_folder}/tempfile_{tempfile_id}.csv', names=['feature_id', output_file_id])
+    csv_binary_folder = os.path.join(binary_folder, 'csv_temp')
+    df = pd.read_csv(f'{csv_binary_folder}/tempfile_{tempfile_id}.csv', names=['feature_id', output_file_id])
     df.set_index('feature_id', inplace=True)  # Set feature_id as the index
     df[output_file_id] = df[output_file_id].astype(float)  # Convert output_file_id column to float64
     table_new = pa.Table.from_pandas(df)
@@ -972,7 +973,10 @@ def rewrite_to_parquet(file_args, binary_folder):
 def nex_files_to_binary(nexus_files, binary_folder):
     # Get the output files
     output_timesteps = get_timesteps_from_nex(nexus_files)
-    partial_split_csv_file = partial(split_csv_file, binary_folder=binary_folder)
+    csv_binary_folder = os.path.join(binary_folder, 'csv_temp') # so that we don't have to rm -rf using bash wildcards
+    partial_split_csv_file = partial(split_csv_file, binary_folder=csv_binary_folder)
+    if not os.path.exists(csv_binary_folder):
+        os.system(f'mkdir {csv_binary_folder}')
     # Split the csv file into multiple csv files
     with multiprocessing.Pool() as pool:
         pool.map(partial_split_csv_file, nexus_files)
@@ -987,7 +991,7 @@ def nex_files_to_binary(nexus_files, binary_folder):
 
     
     # Clean up the temp files
-    os.system(f'rm -rf {binary_folder}/tempfile_*.csv')
+    os.system(f'rm -rf {csv_binary_folder}')
     
     nexus_input_folder = binary_folder
     forcing_glob_filter = '*NEXOUT.parquet'

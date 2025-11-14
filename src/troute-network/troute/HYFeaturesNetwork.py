@@ -156,10 +156,11 @@ def read_ngen_waterbody_df(parm_file, lake_index_field="wb-id", lake_id_mask=Non
     if Path(parm_file).suffix=='.gpkg':
         df = gpd.read_file(parm_file, layer='lakes')
 
-        df = (
-            df.drop(['id','toid','hl_id','hl_reference','hl_uri','geometry'], axis=1)
-            .rename(columns={'hl_link': 'lake_id'})
-            )
+        if ['hl_link'] in df.columns: # none of the dropped columns are in hf v2.2, lake_id is automatically in hf v2.2
+            df = (
+                df.drop(['id','toid','hl_id','hl_reference','hl_uri','geometry'], axis=1)
+                .rename(columns={'hl_link': 'lake_id'})
+                )
         df['lake_id'] = df.lake_id.astype(float).astype(int)
         df = df.set_index('lake_id').drop_duplicates().sort_index()
     elif Path(parm_file).suffix=='.json':
@@ -178,6 +179,10 @@ def read_ngen_waterbody_type_df(parm_file, lake_index_field="wb-id", lake_id_mas
     # reservoir type from the gpkg files. Information should be in 'crosswalk'
     # layer, but as of now (Nov 22, 2022) there doesn't seem to be a differentiation
     # between USGS reservoirs, USACE reservoirs, or RFC reservoirs...
+    # 
+    # Note: as of 8/25/2025, the 'crosswalk' layer no longer exists in the hydrofabric...
+    # And this function isn't even used anyway.
+    
     def node_key_func(x):
         return int( x.split('-')[-1] )
     
@@ -465,17 +470,29 @@ class HYFeaturesNetwork(AbstractNetwork):
     def preprocess_waterbodies(self, lakes, nexus):
         # If waterbodies are being simulated, create waterbody dataframes and dictionaries
         if not lakes.empty:
-            self._waterbody_df = (
-                lakes[['hl_link','ifd','LkArea','LkMxE','OrificeA',
-                       'OrificeC','OrificeE','WeirC','WeirE','WeirL','id']]
-                .rename(columns={'hl_link': 'lake_id'})
-                )
-            
-            id = self.waterbody_dataframe['id'].str.split('-', expand=True).iloc[:,1]
-            self._waterbody_df['id'] = id
-            self._waterbody_df['id'] = self._waterbody_df.id.astype(float).astype(int)
-            self._waterbody_df['lake_id'] = self.waterbody_dataframe.lake_id.astype(float).astype(int)
-            self._waterbody_df = self.waterbody_dataframe.set_index('lake_id').drop_duplicates().sort_index()
+            if "hl_link" in lakes.columns: # v.2.1
+                self._waterbody_df = (
+                    lakes[['hl_link','ifd','LkArea','LkMxE','OrificeA',
+                        'OrificeC','OrificeE','WeirC','WeirE','WeirL','id']]
+                    .rename(columns={'hl_link': 'lake_id'})
+                    )
+                
+                id = self.waterbody_dataframe['id'].str.split('-', expand=True).iloc[:,1]
+                self._waterbody_df['id'] = id
+                self._waterbody_df['id'] = self._waterbody_df.id.astype(float).astype(int)
+                self._waterbody_df['lake_id'] = self.waterbody_dataframe.lake_id.astype(float).astype(int)
+                self._waterbody_df = self.waterbody_dataframe.set_index('lake_id').drop_duplicates().sort_index()
+            else: # v.2.2
+                self._waterbody_df = (
+                    lakes[['ifd','LkArea','LkMxE','OrificeA',
+                        'OrificeC','OrificeE','WeirC','WeirE','WeirL','lake_id', 'hf_id']]
+                ) # hl_link <-> lake_id; id <-> hf_id
+
+                id = self.waterbody_dataframe['hf_id']
+                self._waterbody_df['id'] = id
+                self._waterbody_df['id'] = self._waterbody_df.id.astype(float).astype(int)
+                self._waterbody_df['lake_id'] = self.waterbody_dataframe.lake_id.astype(float).astype(int)
+                self._waterbody_df = self.waterbody_dataframe.set_index('lake_id').drop_duplicates().sort_index()
             
             # Drop any waterbodies that do not have parameters
             self._waterbody_df = self.waterbody_dataframe.dropna()
@@ -555,8 +572,13 @@ class HYFeaturesNetwork(AbstractNetwork):
                 self._waterbody_df['crs'] = np.nan
                 
             # Add the Great Lakes to the connections dictionary and waterbody dataframe
-            nexus['WBOut_id'] = nexus['hl_uri'].str.extract(r'WBOut-(\d+)').astype(float)
-            great_lakes_df = nexus[nexus['WBOut_id'].isin([4800002,4800004,4800006,4800007])][['WBOut_id','toid']]
+            if 'WBOut_id' in nexus.columns: # v.2.1
+                nexus['WBOut_id'] = nexus['hl_uri'].str.extract(r'WBOut-(\d+)').astype(float)
+                great_lakes_df = nexus[nexus['WBOut_id'].isin([4800002,4800004,4800006,4800007])][['WBOut_id','toid']]
+            else: # v.2.2
+                nexus['WBOut_id'] = nexus['id'].str.extract(r'WBOut-(\d+)').astype(float)
+                great_lakes_df = nexus[nexus['WBOut_id'].isin([4800002,4800004,4800006,4800007])][['WBOut_id','toid']]
+
             if not great_lakes_df.empty:
                 great_lakes_df['toid'] = great_lakes_df['toid'].str.extract(r'wb-(\d+)').astype(float)
                 great_lakes_df = great_lakes_df.astype(int)
@@ -623,7 +645,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             # split the hl_uri column into type and value
             gages_df[['type','value']] = gages_df.hl_uri.str.split('-',expand=True,n=1)
             # filter for 'Gages' only
-            gages_df = gages_df[gages_df['type'].isin(['Gages','NID'])]
+            gages_df = gages_df[gages_df['type'].isin(['Gages','NID','gages'])]
             # Some IDs have multiple gages associated with them. This will expand the dataframe so
             # there is a unique row per gage ID. Also adds lake ids to the dataframe for creating 
             # lake-gage crosswalk dataframes.
@@ -717,6 +739,8 @@ class HYFeaturesNetwork(AbstractNetwork):
         nts = run.get("nts", 1)
         qlat_input_folder = run.get("qlat_input_folder", None)
         qlat_input_file = run.get("qlat_input_file", None)
+        max_col = 1 + nts // qts_subdivisions
+        col_t0 =self.t0.strftime('%Y%m%d%H%M')
 
         if qlat_input_folder:
             qlat_input_folder = Path(qlat_input_folder)
@@ -743,14 +767,24 @@ class HYFeaturesNetwork(AbstractNetwork):
                         areas = {}
                         for id, area in results:
                             areas[id] = area
-                    
+                            
+                qlat_column = self.forcing_parameters.get("qlat_file_value_col", None)
+
+                if qlat_file_pattern_filter == "cat-*":
+                    if qlat_column not in pd.read_csv(qlat_files[0], nrows=0).columns:
+                        raise RuntimeError(
+                            "When using qlat_file_pattern_filter as 'cat-*', qlat_file_value_col must be properly specified in the yaml file. "
+                            f"Either qlat_file_value_col is not specified and defaulted to '{qlat_column}' or the specified qlat_file_value_col does not exist in the column of "
+                            "lateral flow files."
+                        )
+
                 def process_file(f):
                     f = Path(f)
                     if qlat_file_pattern_filter=="nex-*":
                         df = pd.read_csv(f, names=['timestamp', 'qlat'], index_col=[0])
-                    else:                        
-                        df = pd.read_csv(f,usecols= ['Time', 'Q_OUT'])
-                        df.rename(columns={'Time': 'timestamp', 'Q_OUT': 'qlat'}, inplace=True)
+                    else:              
+                        df = pd.read_csv(f,usecols= ['Time', qlat_column])
+                        df.rename(columns={'Time': 'timestamp', qlat_column: 'qlat'}, inplace=True)
                         cat_id = f.stem
                         area = areas[cat_id]
                         # https://github.com/CIROH-UA/ngen/blob/77d8ea28502bf8db771529c5852d273785e26554/include/core/Layer.hpp#L142
@@ -762,6 +796,20 @@ class HYFeaturesNetwork(AbstractNetwork):
                     df.index = [int("".join(filter(str.isdigit, f.stem)))]
                     df = df.rename_axis(None, axis=1)
                     df.index.name = 'feature_id'
+                    try:
+                        col_t0_idx = df.columns.get_loc(col_t0)
+                    except KeyError:
+                        raise ValueError(f'Datetime column "{col_t0}" does not exist in nex-* files.')
+
+                    stop = col_t0_idx + max_col - 1
+                    # Check bounds for stop index
+                    if stop > len(df.columns):
+                        raise ValueError(
+                            f"The expected range of datetime columns does not exist in the nex-* files. "
+                            f"Requested columns from index {col_t0_idx} to {stop - 1}, "
+                            f"but dataframe only has {len(df.columns)} columns total."
+                        )
+                    df = df.iloc[:, col_t0_idx:stop]
                     return df
 
                 with Parallel(n_jobs=-1) as p:
