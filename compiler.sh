@@ -34,7 +34,6 @@ fi
 #export LIBRARY_PATH=<paths>:$LIBRARY_PATH
 #if you have custom dynamic library paths, uncomment below and export them
 #export LD_LIBRARY_PATHS=<paths>:$LD_LIBRARY_PATHS
-export NETCDF="/usr/local/include/"
 if [ -z "$NETCDF" ]
 then
     export NETCDFINC=/usr/include/openmpi-x86_64/
