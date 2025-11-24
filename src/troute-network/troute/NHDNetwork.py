@@ -234,6 +234,14 @@ class NHDNetwork(AbstractNetwork):
         break_network_at_waterbodies = self.waterbody_parameters.get(
             "break_network_at_waterbodies", False
         )
+        # Check if hybrid-usgs or hybrid-usace reservoir DA is set to True
+        reservoir_da = self.data_assimilation_parameters.get(
+                'reservoir_da', 
+                {}
+            )
+        
+        # check if RFC-type reservoirs are set to true
+        rfc_params = reservoir_da['reservoir_rfc_da']
 
         # if waterbodies are being simulated, adjust the connections graph so that 
         # waterbodies are collapsed to single nodes. Also, build a mapping between 
@@ -270,11 +278,6 @@ class NHDNetwork(AbstractNetwork):
             # Declare empty dataframe
             self._waterbody_types_df = pd.DataFrame()
 
-            # Check if hybrid-usgs or hybrid-usace reservoir DA is set to True
-            reservoir_da = self.data_assimilation_parameters.get(
-                'reservoir_da', 
-                {}
-            )
             
             if reservoir_da:
                 usgs_hybrid  = reservoir_da['reservoir_persistence_da'].get(
@@ -294,8 +297,6 @@ class NHDNetwork(AbstractNetwork):
                 usace_hybrid = False
                 usgs_hybrid = False
                 
-            # check if RFC-type reservoirs are set to true
-            rfc_params = reservoir_da['reservoir_rfc_da']
             if rfc_params:
                 rfc_forecast = rfc_params.get(
                     'reservoir_rfc_forecasts',
@@ -330,11 +331,26 @@ class NHDNetwork(AbstractNetwork):
                 self._usace_lake_gage_crosswalk = None
 
         else:
+            if reservoir_da:
+                if any([
+                    reservoir_da['reservoir_persistence_da'].get('reservoir_persistence_usgs', False),
+                    reservoir_da['reservoir_persistence_da'].get('reservoir_persistence_usace', False),
+                    rfc_params.get('reservoir_rfc_forecasts', False)
+                ]):
+                    raise ValueError(
+                        "Reservoir data assimilation is enabled but "
+                        "waterbodies are not being simulated. Please set "
+                        "'break_network_at_waterbodies' to True in the "
+                        "waterbody_parameters dictionary. Or if data assimilation "
+                        "is not desired, please disable reservoir data assimilation."
+                    )
+                
             # Declare empty dataframes
             self._waterbody_types_df = pd.DataFrame()
             self._waterbody_df = pd.DataFrame()
-            self._usgs_lake_gage_crosswalk = None
-            self._usace_lake_gage_crosswalk = None
+            self._usgs_lake_gage_crosswalk = pd.DataFrame()
+            self._usace_lake_gage_crosswalk = pd.DataFrame()
+            self._rfc_lake_gage_crosswalk = pd.DataFrame()
     
     def build_qlateral_array(self, run,):
         
