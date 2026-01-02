@@ -1,4 +1,3 @@
-from multiprocessing import pool
 from .AbstractNetwork import AbstractNetwork
 import pandas as pd
 import numpy as np
@@ -6,13 +5,10 @@ import geopandas as gpd
 import time
 import json
 from pathlib import Path
-import pyarrow.parquet as pq
 from itertools import chain
 from joblib import delayed, Parallel
 from collections import defaultdict
 import xarray as xr
-from pprint import pformat
-import os
 import troute.nhd_io as nhd_io #FIXME
 from troute.nhd_network import reverse_dict, extract_connections, reverse_network, reachable
 from .rfc_lake_gage_crosswalk import get_rfc_lake_gage_crosswalk, get_great_lakes_climatology
