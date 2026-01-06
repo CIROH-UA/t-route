@@ -201,18 +201,18 @@ def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_poo
             unique_cols = set(flowline_attributes_df.columns).difference(set(flowlines_df.columns))
             unique_cols.add("flowline_id")
             flowline_attributes_df = flowline_attributes_df[list(unique_cols)]
-            flow = pd.merge(
+            reach = pd.merge(
                 flowlines_df,
                 flowline_attributes_df,
                 on='flowline_id',
                 how='inner'
             )
             #renaming a few columns that aligns with the standard
-            flow.rename(columns = {'flowline_id': 'id', 'flowline_toid' : 'toid', 'lengthm' : 'Length_m'}, inplace= True)
+            reach.rename(columns = {'flowline_id': 'id', 'flowline_toid' : 'toid', 'lengthm' : 'Length_m'}, inplace= True)
         elif not flowlines_df.empty:
-            flow = flowlines_df
+            reach = flowlines_df
         elif not flowline_attributes_df.empty:
-            flow = flowline_attributes_df
+            reach = flowline_attributes_df
 
 
     else:
@@ -229,36 +229,34 @@ def read_geopkg_dev(file_path, compute_parameters, waterbody_parameters, cpu_poo
             unique_cols = set(flowpath_attributes_df.columns).difference(set(flowpaths_df.columns))
             unique_cols.add("id")
             flowpath_attributes_df = flowpath_attributes_df[list(unique_cols)]
-            flow = pd.merge(
+            reach = pd.merge(
                 flowpaths_df, 
                 flowpath_attributes_df, 
                 on='id', 
                 how='inner'
             )
         elif not flowpaths_df.empty:
-            flow = flowpaths_df
+            reach = flowpaths_df
         elif not flowpath_attributes_df.empty:
-            flow = flowpath_attributes_df
+            reach = flowpath_attributes_df
          
     # gages: v3.0 often uses hl_reference; v2.2 may use gage/gages
-    if 'gage' not in flow.columns:
-        if 'gages' in flow.columns:
-            flow = flow.rename(columns={'gages': 'gage'})
-        elif 'hl_reference' in flow.columns:
-            s = flow['hl_reference'].fillna('').str.extract(r'(?:^|,)\s*nwis-(\d{8})', expand=True)[0]
-            flow['gage'] = s            #maybe drop hl_reference after that?
+    if 'gage' not in reach.columns:
+        if 'gages' in reach.columns:
+            reach = reach.rename(columns={'gages': 'gage'})
+        elif 'hl_reference' in reach.columns:
+            s = reach['hl_reference'].fillna('').str.extract(r'(?:^|,)\s*nwis-(\d{8})', expand=True)[0]
+            reach['gage'] = s            #maybe drop hl_reference after that?
 
-
-    if 'WaterbodyID' not in flow.columns:
+    if 'WaterbodyID' not in reach.columns:
         #fill with -9999
-        flow['WaterbodyID'] = -9999  #default null value for waterbody id in v3.0    
-
+        reach['WaterbodyID'] = -9999  #default null value for waterbody id in v3.0    
     lakes = table_dict.get('lakes', pd.DataFrame())
     network = table_dict.get('network', pd.DataFrame())
     nexus = table_dict.get('nexus', pd.DataFrame())
     network_mod = table_dict.get('network_mod',   pd.DataFrame())
 
-    return flow, network_mod, lakes, network, nexus, version_tag
+    return reach, network_mod, lakes, network, nexus, version_tag
 
 def read_json(file_path, edge_list):
     dfs = []
@@ -289,9 +287,6 @@ def numeric_id(flowpath, id_col='key', toid_col='downstream'):
     flowpath[id_col] = int(float(id))
     flowpath[toid_col] = int(float(toid))
     return flowpath
-
-
-
 
 def read_ngen_waterbody_df(parm_file, lake_index_field="wb-id", lake_id_mask=None):
     """
@@ -352,19 +347,19 @@ def read_geo_file(supernetwork_parameters, waterbody_parameters, compute_paramet
     version_tag = 'v30'  #default version tag
     file_type = Path(geo_file_path).suffix
     if(file_type=='.gpkg'):        
-        flow, network_mod, lakes, network, nexus, version_tag = read_geopkg_dev(geo_file_path,
+        reach, network_mod, lakes, network, nexus, version_tag = read_geopkg_dev(geo_file_path,
                                                        compute_parameters,
                                                        waterbody_parameters,
                                                        cpu_pool)
     elif(file_type == '.json'):
         edge_list = supernetwork_parameters['flowpath_edge_list']
-        flow = read_json(geo_file_path, edge_list)
+        reach = read_json(geo_file_path, edge_list)
     elif(file_type=='.geojson'):
-        flow = read_geojson(geo_file_path)
+        reach = read_geojson(geo_file_path)
     else:
         raise RuntimeError("Unsupported file type: {}".format(file_type))
 
-    return flow, network_mod, lakes, network, nexus, version_tag
+    return reach, network_mod, lakes, network, nexus, version_tag
 
 def load_bmi_data(value_dict, bmi_parameters,): 
     # Get the column names that we need from each table of the geopackage
@@ -496,14 +491,14 @@ class HYFeaturesNetwork(AbstractNetwork):
             if not from_files_copy:
                 from_files=True
             if from_files:
-                flow, network_mod, lakes, network, nexus, self._version_tag = read_geo_file(
+                reach, network_mod, lakes, network, nexus, self._version_tag = read_geo_file(
                     self.supernetwork_parameters,
                     self.waterbody_parameters,
                     self.compute_parameters,
                     self.compute_parameters.get('cpu_pool', 1)
                 )
             else:
-                flow, lakes, network = load_bmi_data(
+                reach, lakes, network = load_bmi_data(
                     value_dict, 
                     bmi_parameters,
                     )
@@ -512,9 +507,9 @@ class HYFeaturesNetwork(AbstractNetwork):
                 from_files=False
 
             # Preprocess network objects
-            self.preprocess_network(flow, network_mod, nexus)
+            self.preprocess_network(reach, network_mod, nexus)
 
-            self.crosswalk_nex_flowpath_poi(flow, network_mod, nexus)
+            self.crosswalk_nex_flowpath_poi(reach, nexus)
 
             # Preprocess waterbody objects
             self.preprocess_waterbodies(lakes, nexus)
@@ -707,7 +702,7 @@ class HYFeaturesNetwork(AbstractNetwork):
         # to the model engine/coastal models
         self._nexus_latlon = nexus
 
-    def crosswalk_nex_flowpath_poi(self, df, network_mod, nexus): 
+    def crosswalk_nex_flowpath_poi(self, df, nexus): 
         #we can get _poi_nex_dict if we read the pois layer and pass it here. But do we need that?
         if self.version_tag == 'v30':
             self._nexus_dict = {}

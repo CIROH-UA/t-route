@@ -61,10 +61,6 @@ def main_v04(argv):
     }
     
     showtiming = log_parameters.get("showtiming", None)
-    
-      
-
-
     task_times = {}
     task_times['forcing_time'] = 0
     task_times['route_time'] = 0
