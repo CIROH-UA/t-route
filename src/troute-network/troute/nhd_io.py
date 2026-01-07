@@ -2058,7 +2058,7 @@ def write_flowveldepth_csv_pkl(stream_output_directory, file_name,
                               flow, velocity, depth, nudge_df, timestamps,
                               t0):
     
-    formatted_times = [str(timedelta(seconds=t)) for t in timestamps]
+    formatted_times = [str(timedelta(seconds=int(t))) for t in timestamps]
     
     df_list = []
     
