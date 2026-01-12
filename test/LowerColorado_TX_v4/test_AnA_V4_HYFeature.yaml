@@ -45,6 +45,7 @@ network_topology_parameters:
     supernetwork_parameters:
         #----------
         geo_file_path: domain/LowerColorado_NGEN_v201.gpkg
+        mask_file_path: domain/mask.txt 
         columns: 
             key: 'id'
             downstream: 'toid'
