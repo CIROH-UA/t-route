@@ -637,12 +637,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             mask = down_nums.isin(set(key_nums.dropna().tolist()))
             self.terminal_nexus = set(down_nums[~mask].dropna().astype(int))
 
-            # self._flowpath_dict or self.downstream_flowpath_dict was previously used to assign 
-            # lateral flow from a nexus node to one of its upstream flowpaths. 
-            # This approach is now deprecated, as explained in build_qlateral_array(). 
-            # Instead, self._nexus_to_reach is used to correctly link the lateral flow at a nexus node 
-            # to its downstream reach.            
-            # make the flowpath linkage, ignore the terminal nexus
+            #commented out for the same reason mentioned above
             # self._flowpath_dict = dict(zip(self.dataframe.loc[mask].downstream, self.dataframe.loc[mask].key))
             self._flowpath_dict = {}
 
