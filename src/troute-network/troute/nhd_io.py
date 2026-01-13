@@ -2276,8 +2276,8 @@ def updated_flowveldepth(flowveldepth, nex_id, seg_id, mask_list):
     def create_mask(ids):
         if 9999 in ids:
             ids = flowveldepth.index.get_level_values('featureID')
-        
-        masked = (flowveldepth.index.get_level_values('featureID').isin(ids)) & (flowveldepth.index.get_level_values('Type') == 'wb')
+
+        masked = (flowveldepth.index.get_level_values('featureID').isin(ids)) & (flowveldepth.index.get_level_values('Type') == 'wb')   
         return masked
     
     flowveldepth_seg = flowveldepth[create_mask(seg_id)] if seg_id else pd.DataFrame()
@@ -2371,9 +2371,12 @@ def write_flowveldepth(
     usgs_positions_id (array) - Position ids of usgs gages
     """
     stream_output_directory = Path(stream_output_directory)
-    
     mask_list = stream_output_mask_reader(stream_output_mask)
-    nex_id, seg_id = mask_find_seg(mask_list, nexus_dict, poi_crosswalk)
+    if mask_list:
+        nex_id, seg_id = mask_find_seg(mask_list, nexus_dict, poi_crosswalk)
+    else:
+        seg_id = []
+        nex_id = {}
     flowveldepth = updated_flowveldepth(flowveldepth, nex_id, seg_id, mask_list)
 
     n_timesteps = flowveldepth.shape[1] // 3
@@ -2623,7 +2626,6 @@ def write_flowveldepth(
 #         subset_df.columns = ['_'.join([col.split('_')[0], col.split('_')[2]]) for col in subset_df.columns]
         
 #         # Create the file name based on the current time step
-#         import pdb; pdb.set_trace()
 #         current_time_step = time_steps[counter].strftime('%Y%m%d%H%M')
         
 #         args = (flowveldepth, subset_df, current_time_step, 

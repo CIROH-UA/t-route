@@ -64,8 +64,6 @@ class ComputeParameters(BaseModel):
     If True, Courant metrics are returnd with simulations. This only works for MC simulations
     """
 
-    giuh_node: Optional[bool] = None
-    """If True, flow q from the catchment is assumed to already be delayed using giuh and is added to qdc (flow downstream current timestep) instead of qlat (lateral flow into the reach).  This is only used for MC simulations. """
 
     restart_parameters: "RestartParameters" = Field(default_factory=dict)
     hybrid_parameters: "HybridParameters" = Field(default_factory=dict)

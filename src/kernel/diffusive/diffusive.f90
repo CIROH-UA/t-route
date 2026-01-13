@@ -1446,7 +1446,6 @@ contains
                 !'previous z',z(i+1,j), 'dimensionless_D(i,j)', &
                 !dimensionless_D(i,j)
   !      stop
-         pause !test
       end if
       co(i) =q_sk_multi * co(i)
 

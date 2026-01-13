@@ -67,7 +67,7 @@ cpdef object binary_find(object arr, object els):
 
 
 @cython.boundscheck(False)
-cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:] input_buf, float[:, :] output_buf, bint assume_short_ts, bint giuh = False, bint return_courant=False) nogil:
+cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:] input_buf, float[:, :] output_buf, bint assume_short_ts, bint return_courant=False) nogil:
     """
     Kernel to compute reach.
     Input buffer is array matching following description:
@@ -87,12 +87,8 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
         float dt, qlat, dx, bw, tw, twcc, n, ncc, cs, s0, qdp, velp, depthp
         int i
 
-
     for i in range(nreach):
-        if giuh:
-            qlat = 0.0
-        else:
-            qlat = input_buf[i, 0] # n x 1  
+        qlat = input_buf[i, 0] # n x 1
         dt = input_buf[i, 1] # n x 1
         dx = input_buf[i, 2] # n x 1
         bw = input_buf[i, 3]
@@ -125,10 +121,6 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
                     out)
 
 #        output_buf[i, 0] = quc = out.qdc # this will ignore short TS assumption at seg-to-set scale?
-        
-        if giuh:
-            out.qdc += input_buf[i, 0]  
-
         output_buf[i, 0] = out.qdc
         output_buf[i, 1] = out.velc
         output_buf[i, 2] = out.depthc
@@ -229,7 +221,6 @@ cpdef object compute_network_structured(
     bint return_courant=False,
     int da_check_gage = -1,
     bint from_files=True,
-    bint giuh_node = False,
     ):
     
     """
@@ -748,7 +739,7 @@ cpdef object compute_network_structured(
                 compute_reach_kernel(previous_upstream_flows, upstream_flows,
                                      r.reach.mc_reach.num_segments, buf_view,
                                      out_buf,
-                                     assume_short_ts, giuh = giuh_node)
+                                     assume_short_ts)
 
                 #Copy the output out
                 for _i in range(r.reach.mc_reach.num_segments):

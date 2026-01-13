@@ -113,22 +113,24 @@ class SupernetworkParameters(BaseModel):
         if columns is None:
             if values['network_type']=="HYFeaturesNetwork":
                 default_columns = {
-                    'key'       : 'id',
-                    'downstream': 'toid',
-                    'dx'        : 'length_m',
-                    'n'         : 'n',
-                    'ncc'       : 'nCC',
-                    's0'        : 'So',
-                    'bw'        : 'BtmWdth',
-                    'waterbody' : 'rl_NHDWaterbodyComID',
-                    'gages'     : 'rl_gages',
-                    'tw'        : 'TopWdth',
-                    'twcc'      : 'TopWdthCC',
-                    'musk'      : 'MusK',
-                    'musx'      : 'MusX',
-                    'cs'        : 'ChSlp',
-                    'alt'       : 'alt',
-                    'mainstem'  : 'mainstem',
+                    'key'           : 'id',
+                    'downstream'    : 'toid',
+                    'dx'            : 'Length_m',
+                    'n'             : 'n',
+                    'ncc'           : 'nCC',
+                    's0'            : 'So',
+                    'bw'            : 'BtmWdth',
+                    'waterbody'     : 'WaterbodyID',
+                    'gages'         : 'rl_gages',
+                    'tw'            : 'TopWdth',
+                    'twcc'          : 'TopWdthCC',
+                    'musk'          : 'MusK',
+                    'musx'          : 'MusX',
+                    'cs'            : 'ChSlp',
+                    'alt'           : 'alt',
+                    'mainstem'      : 'mainstem',
+                    'flowpath_id'   : 'flowpath_id',
+                    'flowpath_toid' : 'flowpath_toid'
                     }
             else:
                 default_columns = {
@@ -218,6 +220,14 @@ class Columns(BaseModel):
     """
     mainstem ID
     """
+    flowpath_id: Optional[str]
+    """
+    flowpath id
+    """
+    flowpath_toid: Optional[str]
+    """
+    flowpathto id
+    """
 
 
 class WaterbodyParameters(BaseModel):
@@ -254,4 +264,3 @@ PreprocessingParameters.update_forward_refs()
 SupernetworkParameters.update_forward_refs()
 WaterbodyParameters.update_forward_refs()
 LevelPool.update_forward_refs()
-

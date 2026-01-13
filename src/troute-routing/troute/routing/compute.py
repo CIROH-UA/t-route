@@ -542,7 +542,6 @@ def compute_nhd_routing_v02(
     subnetwork_list,
     flowveldepth_interorder = {},
     from_files = True,
-    giuh_node = False,
 ):
     da_decay_coefficient = da_parameter_dict.get("da_decay_coefficient", 0)
     param_df["dt"] = dt
@@ -874,8 +873,7 @@ def compute_nhd_routing_v02(
                             },
                             assume_short_ts,
                             return_courant,
-                            from_files = from_files,
-                            giuh_node=giuh_node
+                            from_files = from_files
                         )
                     )
                 results_subn[order] = parallel(jobs)
@@ -1179,8 +1177,7 @@ def compute_nhd_routing_v02(
                             },
                             assume_short_ts,
                             return_courant,
-                            from_files=from_files,
-                            giuh_node=giuh_node
+                            from_files=from_files
                         )
                     )
 
@@ -1390,8 +1387,7 @@ def compute_nhd_routing_v02(
                         {},
                         assume_short_ts,
                         return_courant,
-                        from_files=from_files,
-                        giuh_node=giuh_node
+                        from_files=from_files
                     )
                 )
 
@@ -1575,8 +1571,7 @@ def compute_nhd_routing_v02(
                     {},
                     assume_short_ts,
                     return_courant,
-                    from_files=from_files,
-                    giuh_node=giuh_node
+                    from_files=from_files
                 )
             )
 
@@ -1735,8 +1730,7 @@ def compute_nhd_routing_v02(
                         if us in offnetwork_upstreams
                     },
                     assume_short_ts,
-                    return_courant,
-                    giuh_node=giuh_node
+                    return_courant
                 )
             )
 

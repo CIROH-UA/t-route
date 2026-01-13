@@ -35,7 +35,8 @@ class AbstractNetwork(ABC):
                 "supernetwork_parameters", "waterbody_parameters","data_assimilation_parameters",
                 "restart_parameters", "compute_parameters", "forcing_parameters",
                 "hybrid_parameters", "preprocessing_parameters", "output_parameters",
-                "verbose", "showtiming", "break_points", "_routing", "_gl_climatology_df", "_nexus_dict", "_poi_nex_dict"]
+                "verbose", "showtiming", "break_points", "_routing", "_gl_climatology_df", "_nexus_dict", "_poi_nex_dict",
+                "_nexus_to_reach"]
 
     
     def __init__(self, from_files=True, value_dict={}):
@@ -780,9 +781,13 @@ class AbstractNetwork(ABC):
         
         if forcing_glob_filter=="nex-*" or forcing_glob_filter == "cat-*":
             all_files = sorted(qlat_input_folder.glob(forcing_glob_filter))
-            final_timestamp = pd.read_csv(all_files[0], header=None, index_col=[0]).tail(1).iloc[0,0]
-            final_timestamp = datetime.strptime(final_timestamp.strip(), "%Y-%m-%d %H:%M:%S")
-            
+            #final_timestamp = pd.read_csv(all_files[0], header=None, index_col=[0]).tail(1).iloc[0,0]
+            #final_timestamp = datetime.strptime(final_timestamp.strip(), "%Y-%m-%d %H:%M:%S")
+            # Instead of simply taking the last row of the lateral flow files, compute the actual
+            # simulation end time using the number of time steps and the simulation interval.
+            delt_hours = nts * dt / 3600 # simulation perios in hrs
+            final_timestamp = self.t0 + timedelta(hours = delt_hours)
+
             all_files = [os.path.basename(f) for f in all_files]
             
             run_sets = [

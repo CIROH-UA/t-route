@@ -45,6 +45,7 @@ network_topology_parameters:
     supernetwork_parameters:
         #----------
         geo_file_path: domain/LowerColorado_NGEN_v201.gpkg
+        mask_file_path: domain/mask.txt 
         columns: 
             key: 'id'
             downstream: 'toid'
@@ -92,7 +93,7 @@ compute_parameters:
         qts_subdivisions            : 12
         dt                          : 300 # [sec]
         qlat_input_folder           : channel_forcing 
-        qlat_file_pattern_filter    : "*.CHRTOUT_DOMAIN1.csv"
+        qlat_file_pattern_filter    : "nex-*"
         coastal_boundary_input_file : #boundary_forcing  
         nts                         : 288 # 288 for 1day; 2592 for 9 days
         max_loop_size               : 24   # [hr]  
