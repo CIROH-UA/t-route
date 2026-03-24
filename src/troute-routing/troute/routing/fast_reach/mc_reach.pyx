@@ -85,9 +85,10 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
 
     cdef:
         float dt, qlat, dx, bw, tw, twcc, n, ncc, cs, s0, qdp, velp, depthp
-        int i
+        float sdx 
+        int i, j, target_length, sub_segments
 
-
+ 
     for i in range(nreach):
         if giuh:
             qlat = 0.0
@@ -105,14 +106,19 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
         qdp = input_buf[i, 10]
         velp = input_buf[i, 11]
         depthp = input_buf[i, 12]
+        
+        target_length = 300
+        sub_segments = int(dx / target_length)
 
-        reach.muskingcunge(
+        for j in range(sub_segments):
+            sdx = target_length if j < sub_segments - 1 else dx - j * target_length
+            reach.muskingcunge(
                     dt,
                     qup,
                     quc,
                     qdp,
                     qlat,
-                    dx,
+                    sdx,
                     bw,
                     tw,
                     twcc,
@@ -123,6 +129,11 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
                     velp,
                     depthp,
                     out)
+            qup = quc
+            qdp = out.qdc
+            depthp = out.depthc
+            velp = out.velc
+            quc = out.qdc
 
 #        output_buf[i, 0] = quc = out.qdc # this will ignore short TS assumption at seg-to-set scale?
         
