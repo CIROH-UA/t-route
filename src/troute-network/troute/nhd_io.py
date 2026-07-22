@@ -1431,6 +1431,78 @@ def get_channel_restart_from_wrf_hydro(
     return q_initial_states
 
 
+def get_channel_restart_from_wrf_hydro_reorder(
+    channel_initial_states_file,
+    crosswalk_file,
+    channel_ID_column,
+    us_flow_column="qlink1",
+    ds_flow_column="qlink2",
+    depth_column="hlink",
+    default_us_flow_column="qu0",
+    default_ds_flow_column="qd0",
+    default_depth_column="h0",
+):
+    """
+    channel_initial_states_file: restart file. The column containing IDs should be named "links" (or change restart_id_column in the function)
+    crosswalk_file: doesn't get used
+    channel_ID_column: doesn't get used
+    us_flow_column: column in the restart file to use for upstream flow initial state
+    ds_flow_column: column in the restart file to use for downstream flow initial state
+    depth_column: column in the restart file to use for depth initial state
+    default_us_flow_column: name used in remainder of program to refer to this column of the dataset
+    default_ds_flow_column: name used in remainder of program to refer to this column of the dataset
+    default_depth_column: name used in remainder of program to refer to this column of the dataset
+    The Restart file gives hlink, qlink1, and qlink2 values for channels
+    Unlike the original version, this function does NOT assume that the restart and the crosswalk file share an identical row order
+    """
+
+    restart_id_column = "links"  # name of column in restart file containing NWM IDs
+
+    with xr.open_dataset(channel_initial_states_file) as qds:
+        variables_to_keep = [us_flow_column, ds_flow_column]
+        has_depth = depth_column in qds
+        if has_depth:
+            variables_to_keep.append(depth_column)
+
+        if "link" in qds.variables and "link" not in variables_to_keep:
+            variables_to_keep.append("link")
+
+        qdf = qds[variables_to_keep].to_dataframe().reset_index()
+
+    if "link" in qdf.columns and restart_id_column == "links":
+        qdf[restart_id_column] = qdf["link"]
+
+    if restart_id_column not in qdf.columns:
+        raise KeyError(
+            f"Could not find ID column '{restart_id_column}' in {channel_initial_states_file}. "
+            f"Available columns: {qdf.columns.tolist()}"
+        )
+
+    if not has_depth:
+        qdf[depth_column] = 0.0
+
+    qdf.rename(
+        columns={
+            us_flow_column: default_us_flow_column,
+            ds_flow_column: default_ds_flow_column,
+            depth_column: default_depth_column,
+        },
+        inplace=True,
+    )
+
+    qdf[restart_id_column] = qdf[restart_id_column].astype('int64')
+
+    final_columns = [restart_id_column, default_us_flow_column, default_ds_flow_column, default_depth_column]
+    q_initial_states = qdf[final_columns].set_index(restart_id_column)
+
+    try:
+        q_initial_states.index = q_initial_states.index.astype(q_initial_states.index.dtype)
+    except Exception:
+        pass
+
+    return q_initial_states
+
+
 def read_lite_restart(
     file
 ):
