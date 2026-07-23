@@ -2,12 +2,13 @@ FROM rockylinux:9.2 AS rocky-base
 RUN yum install -y epel-release
 RUN yum install -y netcdf netcdf-fortran netcdf-fortran-devel netcdf-mpich
 
-RUN yum install -y git cmake python python-devel pip
+RUN yum install -y git cmake python python-devel
 ENV FC=gfortran NETCDF=/usr/lib64/gfortran/modules/
 
 WORKDIR "/t-route/"
 
-RUN pip3 install uv && uv venv
+COPY --from=ghcr.io/astral-sh/uv:0.11.31 /uv /uvx /bin/
+RUN uv venv
 ENV PATH="/t-route/.venv/bin:$PATH"
 
 COPY . .
