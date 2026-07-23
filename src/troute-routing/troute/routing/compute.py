@@ -17,8 +17,6 @@ import logging
 import heapq
 
 
-'''This is the newest version of the compute.py file, which is used to compute the routing for the NHD network.'''
-
 LOG = logging.getLogger('')
 
 _compute_func_map = defaultdict(
@@ -1158,6 +1156,7 @@ def compute_nhd_routing_v02(
                             assume_short_ts,
                             return_courant,
                             from_files=from_files,
+                            giuh_node=giuh_node
                         )
                     )
 
@@ -1368,6 +1367,7 @@ def compute_nhd_routing_v02(
                         assume_short_ts,
                         return_courant,
                         from_files=from_files,
+                        giuh_node=giuh_node
                     )
                 )
 
@@ -1552,6 +1552,7 @@ def compute_nhd_routing_v02(
                     assume_short_ts,
                     return_courant,
                     from_files=from_files,
+                    giuh_node=giuh_node
                 )
             )
 
@@ -1711,10 +1712,10 @@ def compute_nhd_routing_v02(
                     },
                     assume_short_ts,
                     return_courant,
+                    giuh_node=giuh_node
                 )
             )
-    end_time = time.time()
-    print(f"ELAPSED TIME IN COMPUTE_NHD_ROUTING_FUNCTION: {end_time - start_time} seconds")
+
     return results, subnetwork_list
 
 def compute_diffusive_routing(
