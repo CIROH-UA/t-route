@@ -269,6 +269,12 @@ class StreamflowDA(BaseModel):
     If True, enable streamflow data assimilation in diffusive module. 
     NOTE: Not yet implemented, leave as False. (June 25, 2024)
     """
+    da_from_feather: Optional[FilePath] = None
+    """
+    Path to a feather file containing streamflow data to use for DA.
+    This bypasses all the usual DA file reading logic via usgs_timeslices_folder and uses the feather file directly.
+    Setting this will turn on streamflow nudging regardless of it's value in the config.
+    """
 
 
 class ReservoirPersistenceDA(BaseModel):
