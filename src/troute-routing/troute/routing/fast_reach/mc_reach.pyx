@@ -132,6 +132,10 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
         output_buf[i, 0] = out.qdc
         output_buf[i, 1] = out.velc
         output_buf[i, 2] = out.depthc
+        output_buf[i, 6] = out.C1
+        output_buf[i, 7] = out.C2
+        output_buf[i, 8] = out.C3
+        output_buf[i, 9] = out.C4
 
         if return_courant:
             output_buf[i, 3] = out.cn
@@ -260,7 +264,9 @@ cpdef object compute_network_structured(
         raise ValueError(f"data_values shape mismatch")
     #define and initialize the final output array, add one extra time step for initial conditions
     cdef int qvd_ts_w = 3  # There are 3 values per timestep (corresponding to 3 columns per timestep)
+    cdef int ccoef_ts_w = 4
     cdef np.ndarray[float, ndim=3] flowveldepth_nd = np.zeros((data_idx.shape[0], nsteps+1, qvd_ts_w), dtype='float32')
+    cdef np.ndarray[float, ndim=3] ccoef_nd = np.zeros((data_idx.shape[0], nsteps+1, ccoef_ts_w), dtype='float32')
     #Make ndarrays from the mem views for convience of indexing...may be a better method
     cdef np.ndarray[float, ndim=2] data_array = np.asarray(data_values)
     cdef np.ndarray[float, ndim=2] init_array = np.asarray(initial_conditions)
@@ -481,7 +487,7 @@ cpdef object compute_network_structured(
     #Init buffers
     lateral_flows = np.zeros( max_buff_size, dtype='float32' )
     buf_view = np.zeros( (max_buff_size, 13), dtype='float32')
-    out_buf = np.full( (max_buff_size, 3), -1, dtype='float32')
+    out_buf = np.full( (max_buff_size, 10), -1, dtype='float32')
 
     cdef int num_reaches = len(reach_objects)
     #Dynamically allocate a C array of reach structs
@@ -494,6 +500,7 @@ cpdef object compute_network_structured(
     cdef _Reach* r
     #create a memory view of the ndarray
     cdef float[:,:,::1] flowveldepth = flowveldepth_nd
+    cdef float[:,:,::1] ccoef = ccoef_nd
     cdef np.ndarray[float, ndim=3] upstream_array = np.empty((data_idx.shape[0], nsteps+1, 1), dtype='float32')
     cdef float reservoir_outflow, reservoir_water_elevation
     cdef int id = 0
@@ -759,6 +766,10 @@ cpdef object compute_network_structured(
                         printf("segment.id: %d\t", usgs_positions[reach_has_gage[i]])
                     flowveldepth[segment.id, timestep, 1] = out_buf[_i, 1]
                     flowveldepth[segment.id, timestep, 2] = out_buf[_i, 2]
+                    ccoef[segment.id, timestep, 0] = out_buf[_i, 6]
+                    ccoef[segment.id, timestep, 1] = out_buf[_i, 7]
+                    ccoef[segment.id, timestep, 2] = out_buf[_i, 8]
+                    ccoef[segment.id, timestep, 3] = out_buf[_i, 9]
 
             # For each reach,
             # at the end of flow calculation, Check if there is something to assimilate
@@ -816,6 +827,7 @@ cpdef object compute_network_structured(
     free(reach_structs)
     #slice off the initial condition timestep and return
     output = np.asarray(flowveldepth[:,1:,:], dtype='float32')
+    output_ccoef = np.asarray(ccoef[:,1:,:], dtype='float32')
     #do the same for the upstream_array
     output_upstream = np.asarray(upstream_array[:,1:,:], dtype='float32')
     #return np.asarray(data_idx, dtype=np.intp), np.asarray(flowveldepth.base.reshape(flowveldepth.shape[0], -1), dtype='float32')
@@ -852,5 +864,6 @@ cpdef object compute_network_structured(
             gl_prev_assim_ouflow,
             gl_prev_assim_timestamp,
             gl_update_time
-        )
+        ),
+        output_ccoef.reshape(output_ccoef.shape[0], -1)[fill_index_mask]
     )

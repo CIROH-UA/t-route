@@ -903,7 +903,6 @@ def compute_nhd_routing_v02(
         results = []
         for order in subnetworks_only_ordered_jit:
             results.extend(results_subn[order])
-
         if 1 == 1:
             LOG.info("PARALLEL TIME %s seconds." % (time.time() - start_para_time))
         
