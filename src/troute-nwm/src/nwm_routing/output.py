@@ -281,9 +281,9 @@ def nwm_output_generator(
             )
             
             # replace waterbody lake_ids with outlet link ids
-            if link_lake_crosswalk:
-                # (re) set the flowveldepth index
-                courant.set_index(fvdidxs, inplace = True)
+            # if link_lake_crosswalk:
+            #     # (re) set the flowveldepth index
+            #     courant.set_index(fvdidxs, inplace = True)
             
         LOG.debug("Constructing the FVD DataFrame took %s seconds." % (time.time() - start))
     

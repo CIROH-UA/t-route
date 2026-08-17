@@ -149,7 +149,6 @@ def main_v04(argv):
     compute_kernel = compute_parameters.get("compute_kernel", "V02-caching")
     assume_short_ts = compute_parameters.get("assume_short_ts", False)
     return_courant = compute_parameters.get("return_courant", False)
-        
     logFileName = 'NONE'    
     kernelTalks = log_parameters.get("log_directory", None)
     if kernelTalks:
@@ -196,7 +195,8 @@ def main_v04(argv):
 
 
     for run_set_iterator, run in enumerate(run_sets):
-        
+
+        breakpoint()
         t0 = run.get("t0")
         dt = run.get("dt")
         nts = run.get("nts")
@@ -258,8 +258,6 @@ def main_v04(argv):
         # returns list, first item is run result, second item is subnetwork items
         subnetwork_list = run_results[1]
         run_results = run_results[0]
-
-        
         
         route_end_time = time.time()
         task_times['route_time'] += route_end_time - route_start_time
@@ -304,7 +302,8 @@ def main_v04(argv):
             poi_crosswalk = dict()
 
         output_start_time = time.time()  
-        
+
+        breakpoint()
         #TODO Update this to work with either network type...
         nwm_output_generator(
             run,
@@ -328,7 +327,8 @@ def main_v04(argv):
             poi_crosswalk, 
             logFileName            
         )
-        
+
+        breakpoint()
 
         output_end_time = time.time()
         task_times['output_time'] += output_end_time - output_start_time

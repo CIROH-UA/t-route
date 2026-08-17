@@ -265,8 +265,10 @@ cpdef object compute_network_structured(
     #define and initialize the final output array, add one extra time step for initial conditions
     cdef int qvd_ts_w = 3  # There are 3 values per timestep (corresponding to 3 columns per timestep)
     cdef int ccoef_ts_w = 4
+    cdef int courant_ts_w = 3
     cdef np.ndarray[float, ndim=3] flowveldepth_nd = np.zeros((data_idx.shape[0], nsteps+1, qvd_ts_w), dtype='float32')
     cdef np.ndarray[float, ndim=3] ccoef_nd = np.zeros((data_idx.shape[0], nsteps+1, ccoef_ts_w), dtype='float32')
+    cdef np.ndarray[float, ndim=3] courant_coefficient_nd = np.zeros((data_idx.shape[0], nsteps+1, courant_ts_w), dtype='float32')
     #Make ndarrays from the mem views for convience of indexing...may be a better method
     cdef np.ndarray[float, ndim=2] data_array = np.asarray(data_values)
     cdef np.ndarray[float, ndim=2] init_array = np.asarray(initial_conditions)
@@ -501,10 +503,10 @@ cpdef object compute_network_structured(
     #create a memory view of the ndarray
     cdef float[:,:,::1] flowveldepth = flowveldepth_nd
     cdef float[:,:,::1] ccoef = ccoef_nd
+    cdef float[:,:,::1] courant_coefficient = courant_coefficient_nd
     cdef np.ndarray[float, ndim=3] upstream_array = np.empty((data_idx.shape[0], nsteps+1, 1), dtype='float32')
     cdef float reservoir_outflow, reservoir_water_elevation
     cdef int id = 0
-    
     
     while timestep < nsteps+1:
         for i in range(num_reaches):
@@ -755,7 +757,7 @@ cpdef object compute_network_structured(
                 compute_reach_kernel(previous_upstream_flows, upstream_flows,
                                      r.reach.mc_reach.num_segments, buf_view,
                                      out_buf,
-                                     assume_short_ts, giuh = giuh_node)
+                                     assume_short_ts, giuh = giuh_node, return_courant = return_courant)
 
                 #Copy the output out
                 for _i in range(r.reach.mc_reach.num_segments):
@@ -766,6 +768,10 @@ cpdef object compute_network_structured(
                         printf("segment.id: %d\t", usgs_positions[reach_has_gage[i]])
                     flowveldepth[segment.id, timestep, 1] = out_buf[_i, 1]
                     flowveldepth[segment.id, timestep, 2] = out_buf[_i, 2]
+                    if return_courant:
+                        courant_coefficient[segment.id, timestep, 0] = out_buf[_i, 3]
+                        courant_coefficient[segment.id, timestep, 1] = out_buf[_i, 4]
+                        courant_coefficient[segment.id, timestep, 2] = out_buf[_i, 5]
                     ccoef[segment.id, timestep, 0] = out_buf[_i, 6]
                     ccoef[segment.id, timestep, 1] = out_buf[_i, 7]
                     ccoef[segment.id, timestep, 2] = out_buf[_i, 8]
@@ -828,6 +834,7 @@ cpdef object compute_network_structured(
     #slice off the initial condition timestep and return
     output = np.asarray(flowveldepth[:,1:,:], dtype='float32')
     output_ccoef = np.asarray(ccoef[:,1:,:], dtype='float32')
+    output_courant_coefficient = np.asarray(courant_coefficient[:,1:,:], dtype='float32')
     #do the same for the upstream_array
     output_upstream = np.asarray(upstream_array[:,1:,:], dtype='float32')
     #return np.asarray(data_idx, dtype=np.intp), np.asarray(flowveldepth.base.reshape(flowveldepth.shape[0], -1), dtype='float32')
@@ -865,5 +872,6 @@ cpdef object compute_network_structured(
             gl_prev_assim_timestamp,
             gl_update_time
         ),
-        output_ccoef.reshape(output_ccoef.shape[0], -1)[fill_index_mask]
+        output_ccoef.reshape(output_ccoef.shape[0], -1)[fill_index_mask],
+        output_courant_coefficient.reshape(output_courant_coefficient.shape[0], -1)[fill_index_mask]
     )

@@ -48,6 +48,7 @@ compute_parameters:
     assume_short_ts        : True
     subnetwork_target_size : 10000
     cpu_pool               : 36
+    return_courant         : True
     restart_parameters:
         #----------
         start_datetime: 2021-08-23_13:00
