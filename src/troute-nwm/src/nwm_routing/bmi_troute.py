@@ -93,12 +93,12 @@ class BmiTroute:
         self._start_time = 0.0
         self._current_time = self._start_time
         self._end_time = float("inf")
-        self._time_step = 3600.0
+        self._time_step = 900.0 #every 15 minutes
         self._initialized = True
 
     def update(self):
-        """Advance t-route by the default BMI update window."""
-        self.update_until(time_window=3600)
+        """Advance t-route by the default BMI update window (15 minutes)."""
+        self.update_until(time_window=900)
 
     def update_until(self, time_window):
         """Advance t-route by ``time_window`` seconds."""
@@ -181,7 +181,8 @@ class BmiTroute:
         else:
             self.poi_crosswalk = dict()
 
-        self._write_output(self._build_output_run(t0, nts))
+        #this writes to a file, which is not needed for BMI, so commenting out for now
+        # self._write_output(self._build_output_run(t0, nts))
 
         self.network.t0 = self.network.t0 + timedelta(seconds=time_window)
         self._current_time += time_window
