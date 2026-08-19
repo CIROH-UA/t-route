@@ -4,6 +4,8 @@ BMI wrapper for the NWM t-route driver.
 This class exposes t-route through BMI. Initialization performs the same
 setup as ``main_v04``; each ``update_until`` call routes for the requested
 time window and advances the BMI clock by that amount.
+
+Written and tested by: Sonam Lama (slama@ua.edu)
 """
 
 import logging
