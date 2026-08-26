@@ -96,6 +96,7 @@ class BmiTroute:
         self._current_time = self._start_time
         self._end_time = float("inf")
         self._time_step = 900.0 #every 15 minutes
+        self._sorted_indices = None
         self._initialized = True
 
     def update(self):
@@ -168,6 +169,7 @@ class BmiTroute:
         self.network.update_waterbody_water_elevation()
         self.data_assimilation.update_after_compute(self.run_results, time_window)
 
+        #this updates the output variable that can be referenced by the object
         self.update_output_var_store(self.run_results)
 
         if self.output_parameters.get("lite_restart") is not None:
@@ -357,11 +359,15 @@ class BmiTroute:
 
         reach_list = np.concatenate([result[0] for result in run_results])
 
-        #since the change is internal, bypassing the check rule
-        self.output_var_store["discharge"] = discharge
-        self.output_var_store["k"] = k
-        self.output_var_store["x"] = x
-        self.output_var_store["reach_list"] = reach_list
+        #this gives us a cache to sort index, so we don't have to sort for every time stamp
+        if self._sorted_indices is None:
+            self._sorted_indices = np.argsort(reach_list)
+
+        #since the change is internal, bypassing the check rule and sorting as well
+        self.output_var_store["discharge"] = discharge[self._sorted_indices]
+        self.output_var_store["k"] = k[self._sorted_indices]
+        self.output_var_store["x"] = x[self._sorted_indices]
+        self.output_var_store["reach_list"] = reach_list[self._sorted_indices]
 
     def _initialize_network(self):
         if self.supernetwork_parameters["network_type"] == "HYFeaturesNetwork":

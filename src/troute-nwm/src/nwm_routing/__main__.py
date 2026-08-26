@@ -195,8 +195,6 @@ def main_v04(argv):
 
 
     for run_set_iterator, run in enumerate(run_sets):
-
-        breakpoint()
         t0 = run.get("t0")
         dt = run.get("dt")
         nts = run.get("nts")
