@@ -334,9 +334,40 @@ class BmiTroute:
         # dest[:] = self.output_var_store[name][inds]
         return NotImplementedError
 
+    def update_q0(self):
+        #update the qu0 and qd0 with improved discharge
+        #associated with sorted reach_list
+        if self.input_var_store["initial_discharge"] is not None:
+            qu0 = self.input_var_store["initial_discharge"]
+            qd0 = self.input_var_store["initial_discharge"]
+        else:
+            raise ValueError("Discharge has not been updated with improved discharge")
+
+        #the dataframe also has height that needs to be sorted too
+        if self._sorted_indices is not None:
+            h0 = self.network.q0['h0'].values[self._sorted_indices]
+        else:
+            raise ValueError("The indices have not been sorted yet. This indicates routing has not been done ever before.")
+
+        #sorted reach_list
+        if self.output_var_store["reach_list"] is not None:
+            reach_list = self.output_var_store["reach_list"]
+        else:
+            raise ValueError("This indicates routing has not been done ever before.")
+
+        if self.network.q0 is not None:
+            self.network.q0.index = reach_list
+            self.network.q0["h0"] = h0
+            self.network.q0["qu0"] = qu0
+            self.network.q0["qd0"] = qd0
+
+
     def set_value(self, name, src):
         self._validate_input_name(name)
         self.input_var_store[name] = src
+
+        #trigger the update of q0 dataframe 
+        self.update_q0()
 
     def set_value_at_indices(self, name, inds, src):
         return NotImplementedError
