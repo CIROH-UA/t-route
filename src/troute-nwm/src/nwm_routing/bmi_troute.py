@@ -92,6 +92,7 @@ class BmiTroute:
         self.input_var_store = {name: None for name in self._INPUT_VAR_NAMES}
         self.output_var_store = {name: None for name in self._OUTPUT_VAR_NAMES}
 
+        self._start_datetime = self.network.t0
         self._start_time = 0.0
         self._current_time = self._start_time
         self._end_time = float("inf")
@@ -221,6 +222,12 @@ class BmiTroute:
     def get_time_units(self):
         return "s"
 
+    def get_start_datetime(self):
+        return pd.Timestamp(self._start_datetime).tz_localize('UTC')
+
+    def get_current_datetime(self):
+        return pd.Timestamp(self.network.t0).tz_localize('UTC')
+    
     def get_input_var_names(self):
         return tuple(self.input_var_store.keys())
 

@@ -67,8 +67,8 @@ Use an installer from https://www.python.org/downloads/macos/
       GCC takes a notoriously long time to compile, so go for a walk or something while it compiles.
    - Configure the fortran-netcdf libraries:
       ```zsh
-      export CPPFLAGS="-I$(brew --prefix netcdf)/include"
-      export LDFLAGS="-L/opt/homebrew/Cellar/gcc/16.1.0/lib/gcc/current -L$(brew --prefix netcdf)/lib"
+      export CPPFLAGS="-I$(brew --prefix netcdf)/include -I$(brew --prefix netcdf-fortran)/include"
+      export LDFLAGS="-L/opt/homebrew/Cellar/gcc/16.2.0/lib/gcc/current -L$(brew --prefix netcdf)/lib -L$(brew --prefix netcdf-fortran)/lib"
       export HDF5_PLUGIN_PATH=$(nc-config --plugindir)
       ./configure
       ```
