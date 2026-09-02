@@ -127,6 +127,15 @@ class RestartParameters(BaseModel):
     """
     Field name of depth in restart file.
     """
+    wrf_hydro_channel_restart_input_type: Optional[str] = None
+    """
+    Selects which reader is used for the WRF-Hydro channel restart file.
+    If unset (or any value other than 'reorder'), the default reader is used,
+    which assumes the restart file and crosswalk file share the same row order.
+    If set to 'reorder', an alternate reader is used that reorders restart
+    values using the segment IDs stored inside the restart file itself, so the
+    crosswalk file row order does not matter.
+    """
 
     wrf_hydro_waterbody_restart_file: Optional[FilePath] = None
     """
