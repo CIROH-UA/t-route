@@ -194,6 +194,20 @@ def main_v04(argv):
     if (not kernelTalks):
         firstRun = False
 
+    streamflow_da = compute_parameters.get("data_assimilation_parameters",{}).get("streamflow_da",{})
+    usgs_da_file = streamflow_da.get("da_from_feather", None)
+    if usgs_da_file:
+        feather_file = Path(usgs_da_file)
+        if not feather_file.exists():
+            print(f"Warning: feather file {usgs_da_file} does not exist.")
+        else:
+            try:
+                data_assimilation._usgs_df = pd.read_feather(feather_file)
+                streamflow_da["streamflow_nudging"] = True
+            except Exception as e:
+                print(f"Error reading feather file {usgs_da_file}: {e}")
+
+
     for run_set_iterator, run in enumerate(run_sets):
         
         t0 = run.get("t0")
