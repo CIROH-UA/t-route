@@ -10,5 +10,5 @@ pyyaml
 toolz
 joblib
 deprecated
-pyarrow<12.0
+pyarrow
 geopandas

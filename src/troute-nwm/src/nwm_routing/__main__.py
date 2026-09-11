@@ -202,11 +202,11 @@ def main_v04(argv):
             print(f"Warning: feather file {usgs_da_file} does not exist.")
         else:
             try:
-                data_assimilation.usgs_df = pd.read_feather(feather_file)
+                data_assimilation._usgs_df = pd.read_feather(feather_file)
                 streamflow_da["streamflow_nudging"] = True
             except Exception as e:
                 print(f"Error reading feather file {usgs_da_file}: {e}")
-        
+
 
     for run_set_iterator, run in enumerate(run_sets):
         

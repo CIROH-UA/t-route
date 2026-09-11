@@ -8,7 +8,7 @@ ENV FC=gfortran NETCDF=/usr/lib64/gfortran/modules/
 WORKDIR "/t-route/"
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.31 /uv /uvx /bin/
-RUN uv venv
+RUN uv venv --python 3.12
 ENV PATH="/t-route/.venv/bin:$PATH"
 
 COPY . .
