@@ -104,18 +104,39 @@ class BmiTroute:
         """Advance t-route by the default BMI update window (15 minutes)."""
         self.update_until(time_window=900)
 
+
     def update_until(self, time_window):
-        """Advance t-route by ``time_window`` seconds."""
-        self._require_initialized()
-        t0 = self.network.t0
-        dt = self.forcing_parameters.get("dt")
+        """Advance t-route by ``time_window`` seconds.
+        Parameters
+        ----------
+        time_window : int
+            time window you want the model to slide into future
+        """
         
+        self._require_initialized()
+        dt = self.forcing_parameters.get("dt")
+
         # Check if time_window is a multiple of dt
         if time_window % dt != 0:
             raise ValueError(f"time_window ({time_window}) must be a multiple of dt ({dt}).")
 
-        nts = int(time_window / dt)
+        #if it's multiple of dt, route that many time steps
+        for _ in range(int(time_window / dt)):
+            self.route_one_time_step()
 
+    def route_one_time_step(self):
+        t0 = self.network.t0
+        dt = self.forcing_parameters.get("dt")
+
+        #force nts to be 1, because we only route one time step at a time in this function
+        #makes it easier for the chunking logic of the qlateral dataset.
+        nts = 1
+
+        #preparing the right qlateral for the model
+        qlateral = self.network._qlateral.iloc[:, [int(self._current_time/3600)]]
+
+
+        #route the model with the network information and correct lateral flows
         run_results = nwm_route(
             self.network.connections,
             self.network.reverse_network,
@@ -132,7 +153,7 @@ class BmiTroute:
             self.network.independent_networks,
             self.network.dataframe,
             self.network.q0,
-            self.network._qlateral,
+            qlateral,
             self.data_assimilation.usgs_df,
             self.data_assimilation.lastobs_df,
             self.data_assimilation.reservoir_usgs_df,
@@ -166,18 +187,19 @@ class BmiTroute:
         self.subnetwork_list = run_results[1]
         self.run_results = run_results[0]
 
+        #updates the q0 for the next run
         self.network.new_q0(self.run_results)
         self.network.update_waterbody_water_elevation()
-        self.data_assimilation.update_after_compute(self.run_results, time_window)
+        self.data_assimilation.update_after_compute(self.run_results, dt)
 
-        #this updates the output variable that can be referenced by the object
+        #this updates the output variable that can be referenced by the get function of the model
         self.update_output_var_store(self.run_results)
 
         if self.output_parameters.get("lite_restart") is not None:
             nhd_io.write_lite_restart(
                 self.network.q0,
                 self.network._waterbody_df,
-                t0 + timedelta(seconds=time_window),
+                t0 + timedelta(seconds=dt),
                 self.output_parameters["lite_restart"],
             )
 
@@ -189,8 +211,9 @@ class BmiTroute:
         #this writes to a file, which is not needed for BMI, so commenting out for now
         # self._write_output(self._build_output_run(t0, nts))
 
-        self.network.t0 = self.network.t0 + timedelta(seconds=time_window)
-        self._current_time += time_window
+        #update the timestamp and add dt to the current_time (imp for the logic of chunking of the qlateral)
+        self.network.t0 = self.network.t0 + timedelta(seconds=dt)
+        self._current_time += dt
         self.firstRun = False
 
     def finalize(self):
