@@ -134,6 +134,7 @@ class BmiTroute:
 
         #preparing the right qlateral for the model
         qlateral = self.network._qlateral.iloc[:, [int(self._current_time/3600)]]
+        usgs_df = self.data_assimilation.usgs_df.iloc[:, int(self._current_time/300):]
 
 
         #route the model with the network information and correct lateral flows
@@ -154,7 +155,7 @@ class BmiTroute:
             self.network.dataframe,
             self.network.q0,
             qlateral,
-            self.data_assimilation.usgs_df,
+            usgs_df,
             self.data_assimilation.lastobs_df,
             self.data_assimilation.reservoir_usgs_df,
             self.data_assimilation.reservoir_usgs_param_df,
