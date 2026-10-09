@@ -12,7 +12,7 @@ dependencies = [
     "netcdf4",
     "numpy",
     "pandas",
-    "pyarrow<12.0",
+    "pyarrow",
     "pyyaml",
     "toolz",
     "typing_extensions",
