@@ -1,0 +1,17 @@
+#mapid{
+	width:70%; 
+	height:800px;
+	display:inline-block;
+	vertical-align: top;
+}
+
+#tables{
+	width:20%;
+	display:inline-block;
+	vertical-align: top;
+    color:#e6e6e6;
+}
+
+#bottomContent{
+	vertical-align: bottom
+}

@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+{% block head %}
+  {{ super() }}
+	<base target="_top">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+	<title>Demo</title>
+	
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<style>
+    html, body {
+        height: 100%;
+        margin: 0;
+    }
+    #map {
+        width: 600px;
+        height: 400px;
+        z-index: 150;
+    }
+    .important { color: #336699; }
+
+    #locator{position: absolute; visibility: visible; left:2%;  bottom: 3%; height: 254px; width: 254px; z-index: 200; border:2px solid #3887be;}
+</style>
+
+<style>body { padding: 0; margin: 0; } #map { width: 100vw; height: 100vh; }</style>
+
+{% endblock %}
+{% block content %}
+
+<div id="map"></div>
+<script>
+
+    var center_lat = 32.8998
+    var center_lon = -97.0403
+    var zoom_level = 7
+
+	const map = L.map('map').setView([center_lat, center_lon], zoom_level);
+
+	const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+		maxZoom: 19,
+		attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+	}).addTo(map);
+
+    var streams = {{ streams_json | tojson | safe }};
+    var streamLayer = L.geoJSON(streams, {
+        style: function(feature) {
+            switch (feature.properties.change) {
+                case 'negative': return {color: "#ff0000"};
+                case 'positive':   return {color: "#0000ff"};
+                case 'zero':   return {color: "#bbbbbb"};
+            }
+        }
+    }).addTo(map);
+
+</script>
+
+{% endblock %}

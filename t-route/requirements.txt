@@ -1,0 +1,14 @@
+pip>=22.1.0
+setuptools>=64.0,<69.0
+wheel
+numpy~=1.0
+Cython>3,!=3.0.4
+pandas >=1.1.5, <=2.2.0
+xarray
+netcdf4
+pyyaml
+toolz
+joblib
+deprecated
+pyarrow<12.0
+geopandas
