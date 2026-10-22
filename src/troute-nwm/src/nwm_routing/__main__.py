@@ -301,7 +301,6 @@ def main_v04(argv):
 
         output_start_time = time.time()  
 
-        breakpoint()
         #TODO Update this to work with either network type...
         nwm_output_generator(
             run,
@@ -326,7 +325,6 @@ def main_v04(argv):
             logFileName            
         )
 
-        breakpoint()
 
         output_end_time = time.time()
         task_times['output_time'] += output_end_time - output_start_time

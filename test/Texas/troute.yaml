@@ -48,7 +48,7 @@ compute_parameters:
         qlat_input_folder: ./lateral_inflow/
         qlat_file_pattern_filter: "nex-*"
         nts: 576.0 #288 for 1day
-        max_loop_size: 576.0 # [number of timesteps]
+        max_loop_size: 48 # [number of timesteps]
         # max_loop_size == nts so that output is single file
     data_assimilation_parameters:
         streamflow_da:
@@ -67,6 +67,7 @@ compute_parameters:
                 reservoir_rfc_forecasts_time_series_path: rfc_timeseries/
                 reservoir_rfc_forecasts_lookback_hours: 28
                 reservoir_rfc_forecasts_offset_hours: 28
+        usgs_timeslices_folder: usgs_timeslices/
 #--------------------------------------------------------------------------------
 output_parameters:
     #----------
