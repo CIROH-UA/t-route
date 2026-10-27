@@ -6,8 +6,7 @@ import pandas as pd
 import copy
 
 # Setup system paths so Python can locate the modules
-sys.path.append(os.path.abspath("../src/troute-nwm/src"))
-sys.path.append(os.path.abspath("KF"))
+sys.path.append(os.path.abspath("../../src/troute-nwm/src"))
 
 from nwm_routing.bmi_troute import BmiTroute
 from tx_fast_hydrology.bmi_KF import BmiKF
