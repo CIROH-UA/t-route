@@ -31,14 +31,14 @@ class ComputeParameters(BaseModel):
     parallel computing scheme used during simulation, options below
     - "serial": no parallelization
     - "by-network": parallelization across independent drainage basins
-    - "by-subnetwork-jit": parallelization across subnetworks 
+    - "by-subnetwork-jit": parallelization across subnetworks
     - "by-subnetwork-jit-clustered": parallelization across subnetworks, with clustering to optimize scaling
     """
     compute_kernel: ComputeKernel = "V02-structured"
     """
     routing engine used for simulation
     - "V02-structured" - Muskingum Cunge
-    NOTE: There are two other options that were previously being developed for use with the diffusive kernel, 
+    NOTE: There are two other options that were previously being developed for use with the diffusive kernel,
     but they are now depricated:
     - "diffusive" - Diffusive with adaptive timestepping
     - "diffusice_cnt" - Diffusive with CNT numerical solution
@@ -51,7 +51,7 @@ class ComputeParameters(BaseModel):
     subnetwork_target_size: int = 10000
     """
     The target number of segments per subnetwork, only needed for "by-subnetwork..." parallel schemes.
-    The magnitude of this parameter affects parallel scaling. This is to improve efficiency. Default value has 
+    The magnitude of this parameter affects parallel scaling. This is to improve efficiency. Default value has
     been tested as the fastest for CONUS simultions. For smaller domains this can be reduced.
     """
     cpu_pool: Optional[int] = 1
@@ -82,8 +82,8 @@ class RestartParameters(BaseModel):
     start_datetime: Optional[datetime] = None
     """
     Time of model initialization (timestep zero). Datetime format should be %Y-%m-%d_%H:%M, e.g., 2023-04-25_00:00
-    This start time will control which forcing files and TimeSlice files are required for the simulation. 
-    If the start time is erroneously enertered, such that there are no available forcing files, then the simulation will fail. 
+    This start time will control which forcing files and TimeSlice files are required for the simulation.
+    If the start time is erroneously enertered, such that there are no available forcing files, then the simulation will fail.
     Likewise, if there are no TimeSlice files available, then data assimilation will not occur.
     NOTE: The default is 'None' because the start date can be determined from restart files
     such as 'lite_channel_restart_file' or 'wrf_hydro_channel_restart_file'. But if no restart
@@ -91,19 +91,19 @@ class RestartParameters(BaseModel):
     """
     lite_channel_restart_file: Optional[FilePath] = None
     """
-    Filepath to a 'lite' channel restart file create by a previous t-route simulation. If a file is specified, then it will be 
+    Filepath to a 'lite' channel restart file create by a previous t-route simulation. If a file is specified, then it will be
     given preference over WRF restart files for a simulation restart.
     """
     lite_waterbody_restart_file: Optional[FilePath] = None
     """
-    Filepath to a 'lite' waterbody restart file create by a previous t-route simulation. If a file is specified, then it will be 
+    Filepath to a 'lite' waterbody restart file create by a previous t-route simulation. If a file is specified, then it will be
     given preference over WRF restart files for a simulation restart.
     """
 
     wrf_hydro_channel_restart_file: Optional[FilePath] = None
     """
     Filepath to WRF Hydro HYDRO_RST file. This file does not need to be timed with start_datetime, which allows initial states
-    from one datetime to initialize a simulation with forcings starting at a different datetime. However, if the start_datetime 
+    from one datetime to initialize a simulation with forcings starting at a different datetime. However, if the start_datetime
     parameter is not specified, then the time attribute in the channel restart file will be used as the starting time of the simulation.
     """
     wrf_hydro_channel_ID_crosswalk_file: Optional[FilePath] = None
@@ -158,7 +158,7 @@ class RestartParameters(BaseModel):
     """
     Fieldname of waterbody IDs in channel geometry file.
     """
-    
+
 
     _coerce_datetime = validator("start_datetime", pre=True, allow_reuse=True)(
         coerce_datetime
@@ -168,26 +168,26 @@ class RestartParameters(BaseModel):
 # TODO: determine how to handle context specific required fields
 class HybridParameters(BaseModel):
     """
-    Parameters controlling the use of MC/diffusive hybrid simulations. Only include/populate these parameters if an 
+    Parameters controlling the use of MC/diffusive hybrid simulations. Only include/populate these parameters if an
     MC/diffusive hybrid simulations is desired.
     """
     run_hybrid_routing: bool = False
     """
-    Boolean parameter whether or not hybrid routing is actived. If it is set to True, the hybrid routing is activated. 
+    Boolean parameter whether or not hybrid routing is actived. If it is set to True, the hybrid routing is activated.
     If false, MC is solely used for channel flow routing.
     NOTE: required for hybrid simulations
     """
     diffusive_domain: Optional[FilePath] = None
     """
     Filepath to diffusive domain dictionary file. This file can be either JSON or yaml and contain a dictionary
-    of diffusive network segments, organized by tailwater ID (keys). This is a file such as: 
+    of diffusive network segments, organized by tailwater ID (keys). This is a file such as:
     https://github.com/NOAA-OWP/t-route/blob/master/test/LowerColorado_TX_v4/domain/coastal_domain_tw.yaml
     This file defines tailwater and head water flowpath IDs for the diffusive domain. See file for more info.
     NOTE: required for hybrid simulations
     """
     use_natl_xsections: bool = False
     """
-    Boolean parameter whether or not natural cross section data is used. If it is set to True, diffusive model 
+    Boolean parameter whether or not natural cross section data is used. If it is set to True, diffusive model
     uses natural cross section data. If False, diffusive model uses synthetic cross section defined by RouteLink.nc
     """
     topobathy_domain: Optional[FilePath] = None
@@ -196,7 +196,7 @@ class HybridParameters(BaseModel):
     is contained in a separate file, which this parameter should point to. In the future this data may simply be
     included in the hydrofabric.
     Topobathy data of a channel cross section is defined by comid.
-    NOTE: Required for diffusive routing for natural cross sections. 
+    NOTE: Required for diffusive routing for natural cross sections.
     """
     run_refactored_network: bool = False
     """
@@ -206,7 +206,7 @@ class HybridParameters(BaseModel):
     refactored_domain: Optional[FilePath] = None
     """
     A file with refactored flowpaths to eliminate short segments.
-    NOTE: Only needed for NHD network. 
+    NOTE: Only needed for NHD network.
     """
     refactored_topobathy_domain: Optional[FilePath] = None
     """
@@ -215,17 +215,17 @@ class HybridParameters(BaseModel):
     """
     coastal_boundary_domain: Optional[FilePath] = None
     """
-    File containing crosswalk between diffusive tailwater segment IDs and coastal model output node IDs. 
+    File containing crosswalk between diffusive tailwater segment IDs and coastal model output node IDs.
     This is needed if t-route will use outputs from a coastal model as the downstream boundary condition for
     the diffusive module. See example:
     https://github.com/NOAA-OWP/t-route/blob/master/test/LowerColorado_TX_v4/domain/coastal_domain_crosswalk.yaml
-    NOTE: This is related to the ForcingParameters -> coastal_boundary_input_file parameter. 
+    NOTE: This is related to the ForcingParameters -> coastal_boundary_input_file parameter.
     """
 
 class QLateralForcingSet(BaseModel):
     """
-    Forcing files and number of timesteps associated with each simulation loop. This is optional, only include if 
-    explicitly listing the forcing files in each set. If this variable is not present, make sure nts, 
+    Forcing files and number of timesteps associated with each simulation loop. This is optional, only include if
+    explicitly listing the forcing files in each set. If this variable is not present, make sure nts,
     qlat_file_pattern_filter, and max_loop_size variables are listed.
     NOTE: Using nts, qlat_input_folder, qlat_file_pattern_filter, and max_loop_size is the preferred method.
     """
@@ -250,7 +250,11 @@ class StreamflowDA(BaseModel):
     streamflow_nudging: bool = False
     """
     Boolean, determines whether or not streamflow nudging is performed.
-    NOTE: Mandatory for streamflow DA
+    """
+    streamflow_ekf: bool = False
+    """
+    Boolean, determines whether or not EKF-based streamflow DA is performed.
+    NOTE: Not tested for NHDNetwork yet.
     """
     gage_segID_crosswalk_file: Optional[FilePath] = None
     """
@@ -270,12 +274,12 @@ class StreamflowDA(BaseModel):
     """
     lastobs_file: Optional[FilePath] = None
     """
-    File containing information on the last streamflow observations that were assimilated from a previous t-route run. 
+    File containing information on the last streamflow observations that were assimilated from a previous t-route run.
     This is used for a 'warm' restart. Mostly used for operational NWM settings.
     """
     diffusive_streamflow_nudging: bool = False
     """
-    If True, enable streamflow data assimilation in diffusive module. 
+    If True, enable streamflow data assimilation in diffusive module.
     NOTE: Not yet implemented, leave as False. (June 25, 2024)
     """
     da_from_feather: Optional[FilePath] = None
@@ -340,7 +344,7 @@ class ReservoirRfcParameters(BaseModel):
     """
     reservoir_rfc_forecasts_offset_hours: int = 28
     """
-    Offset hours forward in time from simulation time to look for files. 
+    Offset hours forward in time from simulation time to look for files.
     This helps find the most recent RFC timeseries files for operational NWM use.
     """
     reservoir_rfc_forecast_persist_days: int = 11
@@ -384,8 +388,8 @@ class DataAssimilationParameters(BaseModel, extra='ignore'):
     """
     canada_timeslices_folder: Optional[DirectoryPath] = None
     """
-    Directory path to canadian timeslice files. 
-    NOTE: required for Lake Erie DA (and streamflow nudging using Canadian gages, though that has not been 
+    Directory path to canadian timeslice files.
+    NOTE: required for Lake Erie DA (and streamflow nudging using Canadian gages, though that has not been
     implemented as of June 25, 2024).
     """
     LakeOntario_outflow: Optional[FilePath] = None
@@ -408,14 +412,14 @@ class DataAssimilationParameters(BaseModel, extra='ignore'):
     NOTE: Only relevant if using a WRF-Hydro lastobs restart file.
     """
     wrf_lastobs_type: str = "obs-based"
-    
+
     streamflow_da: StreamflowDA = None
     reservoir_da: Optional[ReservoirDA] = None
 
     qc_threshold: float = Field(1, ge=0, le=1)
     """
-    Threshold for determining which observations are deemed acceptable for DA and which are not. If the values is set to 1, 
-    then only the very best observations are retained. On the other hand, if the value is set to 0, then all observations will be 
+    Threshold for determining which observations are deemed acceptable for DA and which are not. If the values is set to 1,
+    then only the very best observations are retained. On the other hand, if the value is set to 0, then all observations will be
     used for assimilation, even those markesd as very poor quality.
     """
 
@@ -430,7 +434,7 @@ class ForcingParameters(BaseModel):
     """
     qts_subdivisions: int = 12
     """
-    The number of routing simulation timesteps per qlateral time interval. For example, if dt_qlateral = 3600 secs, 
+    The number of routing simulation timesteps per qlateral time interval. For example, if dt_qlateral = 3600 secs,
     and dt = 300 secs, then qts_subdivisions = 3600/300 = 12
     """
     dt: int = 300
@@ -444,7 +448,7 @@ class ForcingParameters(BaseModel):
     """
     max_loop_size: int = 24
     """
-    Value is in hours. To handle memory issues, t-route can divvy it's simulation time into chunks, reducing the amount 
+    Value is in hours. To handle memory issues, t-route can divvy it's simulation time into chunks, reducing the amount
     of forcing and data assimilation files it reads into memory at once. This is the size of those time loops.
     """
     qlat_file_index_col: str = "feature_id"
@@ -474,10 +478,10 @@ class ForcingParameters(BaseModel):
     binary_nexus_file_folder: Optional[DirectoryPath] = None
     """
     Directory to save converted forcing files. Only needed if running t-route as part of ngen suite AND if t-route is having memory issues.
-    NOTE: Exlpanation: Ngen outputs q_lateral files as 1 file per nexus containing all timesteps. t-route requires 1 file per timestep 
-    containing all locations. If this parameter is omitted or left blank, t-route will simply read in all of ngen's output q_lateral files 
-    into memory and will attempt routing. If the simulation is large (temporally and/or spatially), t-route might crash due to memory issues. 
-    By providing a directory to this parameter, t-route will convert ngen's output q_lateral files into parquet files in the format t-route 
+    NOTE: Exlpanation: Ngen outputs q_lateral files as 1 file per nexus containing all timesteps. t-route requires 1 file per timestep
+    containing all locations. If this parameter is omitted or left blank, t-route will simply read in all of ngen's output q_lateral files
+    into memory and will attempt routing. If the simulation is large (temporally and/or spatially), t-route might crash due to memory issues.
+    By providing a directory to this parameter, t-route will convert ngen's output q_lateral files into parquet files in the format t-route
     needs. Then, during routing, t-route will only read the required parquet files as determined by 'max_loop_size', thus reducing memory.
     """
     coastal_boundary_input_file: Optional[FilePath] = None

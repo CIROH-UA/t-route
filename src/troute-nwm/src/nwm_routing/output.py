@@ -13,17 +13,17 @@ LOG = logging.getLogger('')
 def _reindex_lake_to_link_id(target_df, crosswalk):
     '''
     Utility function for replacing lake ID index values
-    with link ID values in a dataframe. This is used to 
+    with link ID values in a dataframe. This is used to
     reinedex results dataframes
-    
+
     Arguments:
     ----------
     - target_df (DataFrame): Data frame to be reinexed
     - crosswalk      (dict): Relates lake ids to outlet link ids
-    
+
     Returns:
     --------
-    - target_df (DataFrame): Re-indexed with link ids replacing 
+    - target_df (DataFrame): Re-indexed with link ids replacing
                              lake ids
     '''
 
@@ -32,8 +32,8 @@ def _reindex_lake_to_link_id(target_df, crosswalk):
     lakeids = np.fromiter(crosswalk.keys(), dtype = int)
     idxs = target_df.index.to_numpy()
     lake_index_intersect = np.intersect1d(
-        idxs, 
-        lakeids, 
+        idxs,
+        lakeids,
         return_indices = True
     )
 
@@ -110,7 +110,7 @@ def _parquet_output_format_converter(df, start_datetime, dt, configuration, pref
         'reference_time': start_datetime.date(),
         'configuration': configuration
     })
-    
+
     return timeseries_df
 
 
@@ -134,9 +134,9 @@ def nwm_output_generator(
     link_lake_crosswalk = None,
     nexus_dict = None,
     poi_crosswalk = None,
-    logFileName='NONE' 
+    logFileName='NONE'
 ):
-  
+
     dt = run.get("dt")
     nts = run.get("nts")
     t0 = run.get("t0")
@@ -174,7 +174,7 @@ def nwm_output_generator(
         )
 
     ################### Output Handling
-    
+
     start_time = time.time()
 
     LOG.info(f"Handling output ...")
@@ -190,7 +190,7 @@ def nwm_output_generator(
     wbdyo = output_parameters.get("lakeout_output", None)
     stream_output = output_parameters.get("stream_output", None)
     lastobso = output_parameters.get("lastobs_output", None)
-    
+
     #delete unused results columns
     for i in range(len(results)):
         results[i] = list(results[i])
@@ -225,7 +225,7 @@ def nwm_output_generator(
             results[i][1] = None
 
         if wbdyo and not waterbodies_df.empty:
-            
+
             # create waterbody dataframe for output to netcdf file
             i_columns = pd.MultiIndex.from_product(
                 [range(nts), ["i"]]
@@ -239,7 +239,7 @@ def nwm_output_generator(
             wbdy_id_list = waterbodies_df.index.values.tolist()
             flow_df = flowveldepth.loc[wbdy_id_list]
             wbdy = wbdy.loc[wbdy_id_list]
-            
+
             # Replace synthetic waterbody IDs (made from duplicate IDs) with
             # original waterbody IDs (if duplicates exist):
             if not duplicate_ids_df.empty:
@@ -263,9 +263,9 @@ def nwm_output_generator(
         # replace waterbody lake_ids with outlet link ids
         if (link_lake_crosswalk):
             flowveldepth = _reindex_lake_to_link_id(flowveldepth, link_lake_crosswalk)
-            
+
         # todo: create a unit test by saving FVD array to disk and then checking that
-        # it matches FVD array from parent branch or other configurations. 
+        # it matches FVD array from parent branch or other configurations.
         # flowveldepth.to_pickle(output_parameters['test_output'])
 
         if return_courant:
@@ -279,14 +279,14 @@ def nwm_output_generator(
                 ],
                 copy=False,
             )
-            
+
             # replace waterbody lake_ids with outlet link ids
             # if link_lake_crosswalk:
             #     # (re) set the flowveldepth index
             #     courant.set_index(fvdidxs, inplace = True)
-            
+
         LOG.debug("Constructing the FVD DataFrame took %s seconds." % (time.time() - start))
-    
+
     if stream_output:
         stream_output_directory = stream_output['stream_output_directory']
         stream_output_mask = stream_output.get('mask_output',)
@@ -295,26 +295,26 @@ def nwm_output_generator(
         stream_output_internal_frequency = stream_output['stream_output_internal_frequency']
         if stream_output_mask:
             stream_output_mask = Path(stream_output_mask)
-        
+
         nudge = np.concatenate([r[8] for r in results])
         usgs_positions_id = np.concatenate([r[3][0] for r in results])
 
         nhd_io.write_flowveldepth(
             Path(stream_output_directory),
-            stream_output_mask, 
-            flowveldepth, 
-            nudge, 
-            usgs_positions_id, 
-            t0, 
+            stream_output_mask,
+            flowveldepth,
+            nudge,
+            usgs_positions_id,
+            t0,
             dt,
-            int(stream_output_timediff), 
+            int(stream_output_timediff),
             stream_output_type,
             stream_output_internal_frequency,
             cpu_pool = cpu_pool,
             poi_crosswalk = poi_crosswalk,
             nexus_dict= nexus_dict,
             )
-            
+
         # if parity_set is undefined results won't be used again after this point
         try:
             parity_set
@@ -323,22 +323,22 @@ def nwm_output_generator(
 
         if (not logFileName == 'NONE'):
             with open(logFileName, 'a') as preRunLog:
-                preRunLog.write("\n") 
-                preRunLog.write("-----\n") 
-                preRunLog.write("Output of flow velocity depth files into folder: "+str(Path(stream_output_directory))+"\n") 
-                preRunLog.write("-----\n") 
+                preRunLog.write("\n")
+                preRunLog.write("-----\n")
+                preRunLog.write("Output of flow velocity depth files into folder: "+str(Path(stream_output_directory))+"\n")
+                preRunLog.write("-----\n")
                 nTimeBins = int( len(flowveldepth.columns)/3)
                 fCalc = int(dt/60)
                 preRunLog.write("Internal computation of FVD data every "+str(stream_output_internal_frequency)+" minutes\n")
                 preRunLog.write("Output of FVD data every "+str(fCalc)+" minutes\n")
-                preRunLog.write("Writing "+str(nTimeBins)+" time bins for "+str(len(flowveldepth.index))+" segments per FVD output file\n")               
-            preRunLog.close()      
+                preRunLog.write("Writing "+str(nTimeBins)+" time bins for "+str(len(flowveldepth.index))+" segments per FVD output file\n")
+            preRunLog.close()
 
     if test:
         flowveldepth.to_pickle(Path(test))
-    
+
     if wbdyo and not waterbodies_df.empty:
-        
+
         time_index, tmp_variable = map(list,zip(*i_df.columns.tolist()))
         if not duplicate_ids_df.empty:
             output_waterbodies_df = waterbodies_df.rename(index=dict(duplicate_ids_df[['synthetic_ids','lake_id']].values))
@@ -348,35 +348,35 @@ def nwm_output_generator(
             output_waterbody_types_df = waterbody_types_df
         LOG.info("- writing t-route flow results to LAKEOUT files")
         start = time.time()
-        for i in range(i_df.shape[1]):              
+        for i in range(i_df.shape[1]):
             nhd_io.write_waterbody_netcdf(
-                wbdyo, 
+                wbdyo,
                 i_df.iloc[:,[i]],
                 q_df.iloc[:,[i]],
                 d_df.iloc[:,[i]],
                 output_waterbodies_df,
                 output_waterbody_types_df,
-                t0, 
-                dt, 
+                t0,
+                dt,
                 nts,
                 time_index[i],
             )
-        
+
         if (not logFileName == 'NONE'):
             with open(logFileName, 'a') as preRunLog:
-                preRunLog.write("\n") 
-                preRunLog.write("-----\n") 
-                preRunLog.write("Output of waterbody files into folder: "+str(wbdyo)+"\n") 
-                preRunLog.write("-----\n") 
-            preRunLog.close()  
-        
+                preRunLog.write("\n")
+                preRunLog.write("-----\n")
+                preRunLog.write("Output of waterbody files into folder: "+str(wbdyo)+"\n")
+                preRunLog.write("-----\n")
+            preRunLog.close()
+
         LOG.debug("writing LAKEOUT files took a total time of %s seconds." % (time.time() - start))
-    
+
     if rsrto:
 
         LOG.info("- writing restart files")
         start = time.time()
-        
+
         wrf_hydro_restart_dir = rsrto.get(
             "wrf_hydro_channel_restart_source_directory", None
         )
@@ -407,11 +407,11 @@ def nwm_output_generator(
 
                 if (not logFileName == 'NONE'):
                     with open(logFileName, 'a') as preRunLog:
-                        preRunLog.write("\n") 
-                        preRunLog.write("-----\n") 
-                        preRunLog.write("Output of wrf hydro restart files into folder: "+str(Path(wrf_hydro_restart_dir))+"\n") 
-                        preRunLog.write("-----\n") 
-                    preRunLog.close()  
+                        preRunLog.write("\n")
+                        preRunLog.write("-----\n")
+                        preRunLog.write("Output of wrf hydro restart files into folder: "+str(Path(wrf_hydro_restart_dir))+"\n")
+                        preRunLog.write("-----\n")
+                    preRunLog.close()
 
             else:
                 LOG.critical('Did not find any restart files in wrf_hydro_channel_restart_source_directory. Aborting restart write sequence.')
@@ -425,13 +425,13 @@ def nwm_output_generator(
 
         LOG.info("- writing t-route flow results to CHRTOUT files")
         start = time.time()
-        
+
         chrtout_read_folder = chrto.get(
             "wrf_hydro_channel_output_source_folder", None
         )
 
         if chrtout_read_folder:
-            
+
             chrtout_files = sorted(
                 Path(chrtout_read_folder) / f for f in run["qlat_files"]
             )
@@ -442,19 +442,19 @@ def nwm_output_generator(
                 qts_subdivisions,
                 cpu_pool,
             )
-        
+
             if (not logFileName == 'NONE'):
                 with open(logFileName, 'a') as preRunLog:
-                    preRunLog.write("\n") 
-                    preRunLog.write("-----\n") 
-                    preRunLog.write("Output of FVD files into folder: "+str(chrtout_read_folder)+"\n") 
-                    preRunLog.write("-----\n") 
-                preRunLog.close()  
+                    preRunLog.write("\n")
+                    preRunLog.write("-----\n")
+                    preRunLog.write("Output of FVD files into folder: "+str(chrtout_read_folder)+"\n")
+                    preRunLog.write("-----\n")
+                preRunLog.close()
 
         LOG.debug("writing CHRTOUT files took a total time of %s seconds." % (time.time() - start))
 
-    if csv_output_folder: 
-    
+    if csv_output_folder:
+
         LOG.info("- writing flow, velocity, and depth results to .csv")
         start = time.time()
 
@@ -477,7 +477,7 @@ def nwm_output_generator(
         # no csv_output_segments are specified, then write results for all segments
         if not csv_output_segments:
             csv_output_segments = flowveldepth.index
-        
+
         flowveldepth = flowveldepth.sort_index()
         flowveldepth.loc[csv_output_segments].to_csv(output_path.joinpath(filename_fvd))
 
@@ -537,7 +537,7 @@ def nwm_output_generator(
 
         LOG.info("- writing t-route flow results at gage locations to CHANOBS file")
         start = time.time()
-        
+
         # replace waterbody lake_ids with outlet link ids
         if link_lake_crosswalk:
             link_gage_df = _reindex_lake_to_link_id(link_gage_df, link_lake_crosswalk)
@@ -548,26 +548,26 @@ def nwm_output_generator(
 
         nhd_io.write_chanobs(
             Path(chano['chanobs_output_directory'] + chano['chanobs_filepath']),
-            flowveldepth, 
-            link_gage_df, 
-            t0, 
-            dt, 
+            flowveldepth,
+            link_gage_df,
+            t0,
+            dt,
             nts,
             # TODO allow user to pass a list of segments at which they would like to print results
-            # rather than just printing at gages. 
+            # rather than just printing at gages.
         )
 
         if (not logFileName == 'NONE'):
             with open(logFileName, 'a') as preRunLog:
-                preRunLog.write("\n") 
-                preRunLog.write("-----\n") 
+                preRunLog.write("\n")
+                preRunLog.write("-----\n")
                 preRunLog.write("Output of results at gage locations into folder: "+str(Path(chano['chanobs_output_directory'])+"\n"))
-                preRunLog.write("-----\n") 
-            preRunLog.close()  
+                preRunLog.write("-----\n")
+            preRunLog.close()
 
-        LOG.debug("writing flow data to CHANOBS took %s seconds." % (time.time() - start))       
+        LOG.debug("writing flow data to CHANOBS took %s seconds." % (time.time() - start))
 
-    if lastobso:      
+    if lastobso:
         # Write out LastObs as netcdf when using main_v04 or troute_model with HYfeature.
         # This is only needed if 1) streamflow nudging is ON and 2) a lastobs output
         # folder is provided by the user.
@@ -579,8 +579,9 @@ def nwm_output_generator(
             lastobs_output_folder = output_parameters.get("lastobs_output", None)
 
             nudging_true = streamflow_da.get('streamflow_nudging', None)
+            ekf_true = streamflow_da.get('streamflow_ekf', None)
 
-        if nudging_true and lastobs_output_folder and not lastobs_df.empty:
+        if (nudging_true or ekf_true) and lastobs_output_folder and not lastobs_df.empty:
 
             LOG.info("- writing lastobs files")
             start = time.time()
@@ -596,11 +597,11 @@ def nwm_output_generator(
 
             if (not logFileName == 'NONE'):
                 with open(logFileName, 'a') as preRunLog:
-                    preRunLog.write("\n") 
-                    preRunLog.write("-----\n") 
-                    preRunLog.write("Output of lastobs data into folder: "+str(lastobs_output_folder)+"\n") 
-                    preRunLog.write("-----\n") 
-                preRunLog.close()  
+                    preRunLog.write("\n")
+                    preRunLog.write("-----\n")
+                    preRunLog.write("Output of lastobs data into folder: "+str(lastobs_output_folder)+"\n")
+                    preRunLog.write("-----\n")
+                preRunLog.close()
 
             LOG.debug("writing lastobs files took %s seconds." % (time.time() - start))
 
@@ -616,9 +617,9 @@ def nwm_output_generator(
         LOG.info(
             "conducting parity check, comparing WRF Hydro results against t-route results"
         )
-    
+
         start_time = time.time()
-        
+
         parity_check(
             parity_set, results,
         )

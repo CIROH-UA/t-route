@@ -54,6 +54,7 @@ compute_parameters:
         streamflow_da:
             #----------
             streamflow_nudging: False
+            streamflow_ekf: True
             diffusive_streamflow_nudging: False
         reservoir_da:
             #----------

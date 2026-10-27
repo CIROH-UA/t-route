@@ -44,17 +44,18 @@ def read_geopkg(file_path, compute_parameters, waterbody_parameters, cpu_pool):
     }
 
     # Match available layers to the patterns
-    matched_layers = {key: find_layer_name(available_layers, pattern) 
+    matched_layers = {key: find_layer_name(available_layers, pattern)
                       for key, pattern in layer_patterns.items()}
-    
+
     layers_to_read = ['flowpaths', 'flowpath_attributes']
-    
+
     if waterbody_parameters.get('break_network_at_waterbodies', False):
         layers_to_read.extend(['lakes', 'nexus'])
 
     data_assimilation_parameters = compute_parameters.get('data_assimilation_parameters', {})
     if any([
         data_assimilation_parameters.get('streamflow_da', {}).get('streamflow_nudging', False),
+        data_assimilation_parameters.get('streamflow_da', {}).get('streamflow_ekf', False),
         data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_persistence_usgs', False),
         data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_persistence_usace', False),
         data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_rfc_da', {}).get('reservoir_rfc_forecasts', False)
@@ -74,16 +75,16 @@ def read_geopkg(file_path, compute_parameters, waterbody_parameters, cpu_pool):
                 print(f"Error reading {layer_name}: {e}")
                 return pd.DataFrame()
         return pd.DataFrame()
-       
+
     # Retrieve geopackage information using matched layer names
     if cpu_pool > 1:
         with Parallel(n_jobs=min(cpu_pool, len(layers_to_read))) as parallel:
             gpkg_list = parallel(delayed(read_layer)(matched_layers[layer]) for layer in layers_to_read)
-        
+
         table_dict = {layers_to_read[i]: gpkg_list[i] for i in range(len(layers_to_read))}
     else:
         table_dict = {layer: read_layer(matched_layers[layer]) for layer in layers_to_read}
-    
+
     # Handle different key column names between flowpaths and flowpath_attributes
     flowpaths_df = table_dict.get('flowpaths', pd.DataFrame())
     flowpath_attributes_df = table_dict.get('flowpath_attributes', pd.DataFrame())
@@ -99,9 +100,9 @@ def read_geopkg(file_path, compute_parameters, waterbody_parameters, cpu_pool):
         unique_cols.add("id")
         flowpath_attributes_df = flowpath_attributes_df[list(unique_cols)]
         flowpaths = pd.merge(
-            flowpaths_df, 
-            flowpath_attributes_df, 
-            on='id', 
+            flowpaths_df,
+            flowpath_attributes_df,
+            on='id',
             how='inner'
         )
     elif not flowpaths_df.empty:
@@ -124,7 +125,7 @@ def read_json(file_path, edge_list):
         for id_dict in edge_data:
             edge_map[ id_dict[wb_id] ] = id_dict[toid]
         with open(file_path) as data_file:
-            json_data = json.load(data_file)  
+            json_data = json.load(data_file)
             for key_wb, value_params in json_data.items():
                 df = pd.json_normalize(value_params)
                 df[wb_id] = key_wb
@@ -175,17 +176,17 @@ def read_ngen_waterbody_df(parm_file, lake_index_field="wb-id", lake_id_mask=Non
 def read_ngen_waterbody_type_df(parm_file, lake_index_field="wb-id", lake_id_mask=None):
     """
     """
-    #FIXME: this function is likely not correct. Unclear how we will get 
+    #FIXME: this function is likely not correct. Unclear how we will get
     # reservoir type from the gpkg files. Information should be in 'crosswalk'
     # layer, but as of now (Nov 22, 2022) there doesn't seem to be a differentiation
     # between USGS reservoirs, USACE reservoirs, or RFC reservoirs...
-    # 
+    #
     # Note: as of 8/25/2025, the 'crosswalk' layer no longer exists in the hydrofabric...
     # And this function isn't even used anyway.
-    
+
     def node_key_func(x):
         return int( x.split('-')[-1] )
-    
+
     if Path(parm_file).suffix=='.gpkg':
         df = gpd.read_file(parm_file, layer="crosswalk").set_index('id')
     elif Path(parm_file).suffix=='.json':
@@ -195,16 +196,16 @@ def read_ngen_waterbody_type_df(parm_file, lake_index_field="wb-id", lake_id_mas
     df.index.name = lake_index_field
     if lake_id_mask:
         df = df.loc[lake_id_mask]
-        
+
     return df
 
 def read_geo_file(supernetwork_parameters, waterbody_parameters, compute_parameters, cpu_pool):
-        
+
     geo_file_path = supernetwork_parameters["geo_file_path"]
     flowpaths = lakes = network = pd.DataFrame()
-    
+
     file_type = Path(geo_file_path).suffix
-    if(file_type=='.gpkg'):        
+    if(file_type=='.gpkg'):
         flowpaths, lakes, network, nexus = read_geopkg(geo_file_path,
                                                        compute_parameters,
                                                        waterbody_parameters,
@@ -216,10 +217,10 @@ def read_geo_file(supernetwork_parameters, waterbody_parameters, compute_paramet
         flowpaths = read_geojson(geo_file_path)
     else:
         raise RuntimeError("Unsupported file type: {}".format(file_type))
-    
+
     return flowpaths, lakes, network, nexus
 
-def load_bmi_data(value_dict, bmi_parameters,): 
+def load_bmi_data(value_dict, bmi_parameters,):
     # Get the column names that we need from each table of the geopackage
     flowpath_columns = bmi_parameters.get('flowpath_columns')
     attributes_columns = bmi_parameters.get('attributes_columns')
@@ -253,27 +254,27 @@ def load_bmi_data(value_dict, bmi_parameters,):
 
 class HYFeaturesNetwork(AbstractNetwork):
     """
-    
+
     """
     __slots__ = ["_upstream_terminal", "_nexus_latlon", "_duplicate_ids_df",]
 
-    def __init__(self, 
-                 supernetwork_parameters, 
+    def __init__(self,
+                 supernetwork_parameters,
                  waterbody_parameters,
                  data_assimilation_parameters,
-                 restart_parameters, 
+                 restart_parameters,
                  compute_parameters,
                  forcing_parameters,
-                 hybrid_parameters, 
+                 hybrid_parameters,
                  preprocessing_parameters,
                  output_parameters,
-                 verbose=False, 
+                 verbose=False,
                  showtiming=False,
                  from_files=True,
                  value_dict={},
                  bmi_parameters={},):
         """
-        
+
         """
         self.supernetwork_parameters = supernetwork_parameters
         self.waterbody_parameters = waterbody_parameters
@@ -291,7 +292,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             print("creating supernetwork connections set")
         if self.showtiming:
             start_time = time.time()
-        
+
         #------------------------------------------------
         # Load hydrofabric information
         #------------------------------------------------
@@ -312,7 +313,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                 )
             else:
                 flowpaths, lakes, network = load_bmi_data(
-                    value_dict, 
+                    value_dict,
                     bmi_parameters,
                     )
             #FIXME: See FIXME above.
@@ -321,7 +322,7 @@ class HYFeaturesNetwork(AbstractNetwork):
 
             # Preprocess network objects
             self.preprocess_network(flowpaths, nexus)
-            
+
             self.crosswalk_nex_flowpath_poi(flowpaths, nexus)
 
             # Preprocess waterbody objects
@@ -329,7 +330,7 @@ class HYFeaturesNetwork(AbstractNetwork):
 
             # Preprocess data assimilation objects #TODO: Move to DataAssimilation.py?
             self.preprocess_data_assimilation(network)
-        
+
             if self.preprocessing_parameters.get('preprocess_output_folder', None):
                 self.write_preprocessed_data()
 
@@ -341,10 +342,10 @@ class HYFeaturesNetwork(AbstractNetwork):
             print("supernetwork connections set complete")
         if self.showtiming:
             print("... in %s seconds." % (time.time() - start_time))
-            
 
-        super().__init__(from_files, value_dict)   
-            
+
+        super().__init__(from_files, value_dict)
+
         # Create empty dataframe for coastal_boundary_depth_df. This way we can check if
         # it exists, and only read in SCHISM data during 'assemble_forcings' if it doesn't
         self._coastal_boundary_depth_df = pd.DataFrame()
@@ -367,22 +368,22 @@ class HYFeaturesNetwork(AbstractNetwork):
             value is the id to look up waterbody parameters
         """
         return self._waterbody_connections
-    
+
     @property
     def gages(self):
         """
         FIXME
         """
         return self._gages
-    
+
     @property
     def waterbody_null(self):
         return np.nan #pd.NA
-    
-    
+
+
     def preprocess_network(self, flowpaths, nexus):
         self._dataframe = flowpaths
-        
+
         cols = self.supernetwork_parameters.get('columns', None)
         if cols:
             col_idx = list(set(cols.values()).intersection(set(self.dataframe.columns)))
@@ -404,20 +405,20 @@ class HYFeaturesNetwork(AbstractNetwork):
             #        musx: "MusX"
             #        cs: "ChSlp"  # TODO: rename to `sideslope`
             self._dataframe = self.dataframe.rename(columns=reverse_dict(cols))
-        
+
         # Don't need the string prefix anymore, drop it
-        mask = ~ self.dataframe['downstream'].str.startswith("tnx") 
+        mask = ~ self.dataframe['downstream'].str.startswith("tnx")
         self._dataframe = self.dataframe.apply(numeric_id, axis=1)
-        
+
         # make the flowpath linkage, ignore the terminal nexus
         self._flowpath_dict = dict(zip(self.dataframe.loc[mask].downstream, self.dataframe.loc[mask].key))
-        
+
         self._dataframe.set_index("key", inplace=True)
         self._dataframe = self.dataframe.sort_index()
-        
+
         # **********  need to be included in flowpath_attributes  *************
         if 'alt' not in self.dataframe.columns:
-            self._dataframe['alt'] = 1.0 #FIXME get the right value for this... 
+            self._dataframe['alt'] = 1.0 #FIXME get the right value for this...
 
         # Drop 'gages' column if it is present
         if 'gages' in self.dataframe:
@@ -450,15 +451,15 @@ class HYFeaturesNetwork(AbstractNetwork):
         self._connections = extract_connections(
             self.dataframe, "downstream", terminal_codes=self.terminal_codes
         )
-        
+
         # Store a dataframe containing info about nexus points. This will be reprojected to lat/lon
         # and filtered for only diffusive domain tailwaters in AbstractNetwork.py.
-        # Location information will be used to advertise tailwater locations of diffusive domains 
+        # Location information will be used to advertise tailwater locations of diffusive domains
         # to the model engine/coastal models
         self._nexus_latlon = nexus
 
     def crosswalk_nex_flowpath_poi(self, flowpaths, nexus):
-        
+
         mask_flowpaths = flowpaths['toid'].str.startswith(('nex-', 'tnex-'))
         filtered_flowpaths = flowpaths[mask_flowpaths]
         self._nexus_dict = filtered_flowpaths.groupby('toid')['id'].apply(list).to_dict()  ##{id: toid}
@@ -476,7 +477,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                         'OrificeC','OrificeE','WeirC','WeirE','WeirL','id']]
                     .rename(columns={'hl_link': 'lake_id'})
                     )
-                
+
                 id = self.waterbody_dataframe['id'].str.split('-', expand=True).iloc[:,1]
                 self._waterbody_df['id'] = id
                 self._waterbody_df['id'] = self._waterbody_df.id.astype(float).astype(int)
@@ -493,10 +494,10 @@ class HYFeaturesNetwork(AbstractNetwork):
                 self._waterbody_df['id'] = self._waterbody_df.id.astype(float).astype(int)
                 self._waterbody_df['lake_id'] = self.waterbody_dataframe.lake_id.astype(float).astype(int)
                 self._waterbody_df = self.waterbody_dataframe.set_index('lake_id').drop_duplicates().sort_index()
-            
+
             # Drop any waterbodies that do not have parameters
             self._waterbody_df = self.waterbody_dataframe.dropna()
-            
+
             # Check if there are any lake_ids that are also segment_ids. If so, add a large value
             # to the lake_ids:
             duplicate_ids = list(set(self.waterbody_dataframe.index).intersection(set(self.dataframe.index)))
@@ -505,7 +506,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                 'synthetic_ids': [int(id + 9.99e11) for id in duplicate_ids]
             })
             update_dict = dict(self._duplicate_ids_df[['lake_id','synthetic_ids']].values)
-            
+
             tmp_wbody_conn = self.dataframe[['waterbody']].dropna()
             tmp_wbody_conn = (
                 tmp_wbody_conn['waterbody']
@@ -528,20 +529,20 @@ class HYFeaturesNetwork(AbstractNetwork):
 
             self._waterbody_df = self.waterbody_dataframe.rename(index=update_dict).sort_index()
             self._dataframe = self.dataframe.replace({'waterbody': update_dict})
-            
+
             #FIXME temp solution for missing waterbody info in hydrofabric
             self.bandaid()
-            
+
             wbody_conn = self.dataframe[['waterbody']].dropna().astype(int).reset_index()
-            
+
             self._waterbody_connections = (
                 wbody_conn[wbody_conn['waterbody'].isin(self.waterbody_dataframe.index)]
                 .set_index('key')['waterbody']
                 .to_dict()
                 )
-            
-            # if waterbodies are being simulated, adjust the connections graph so that 
-            # waterbodies are collapsed to single nodes. Also, build a mapping between 
+
+            # if waterbodies are being simulated, adjust the connections graph so that
+            # waterbodies are collapsed to single nodes. Also, build a mapping between
             # waterbody outlet segments and lake ids
             break_network_at_waterbodies = self.waterbody_parameters.get("break_network_at_waterbodies", False)
             if break_network_at_waterbodies:
@@ -550,7 +551,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                 )
             else:
                 self._link_lake_crosswalk = None
-            
+
             # Add lat, lon, and crs columns for LAKEOUT files:
             lakeout = self.output_parameters.get("lakeout_output", None)
             if lakeout:
@@ -570,7 +571,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                 self._waterbody_df['lon'] = np.nan
                 self._waterbody_df['lat'] = np.nan
                 self._waterbody_df['crs'] = np.nan
-                
+
             # Add the Great Lakes to the connections dictionary and waterbody dataframe
             if 'WBOut_id' in nexus.columns: # v.2.1
                 nexus['WBOut_id'] = nexus['hl_uri'].str.extract(r'WBOut-(\d+)').astype(float)
@@ -585,37 +586,37 @@ class HYFeaturesNetwork(AbstractNetwork):
                 great_lakes_df['toid'] = great_lakes_df["toid"].apply(lambda x: [x])
                 gl_dict = great_lakes_df.set_index('WBOut_id')['toid'].to_dict()
                 self._connections.update(gl_dict)
-                
+
                 gl_wbody_df = pd.DataFrame(
                     data=np.ones([len(gl_dict), self.waterbody_dataframe.shape[1]]),
-                    index=gl_dict.keys(), 
+                    index=gl_dict.keys(),
                     columns=self.waterbody_dataframe.columns
                     )
                 gl_wbody_df.index.name = self.waterbody_dataframe.index.name
-                
+
                 self._waterbody_df = pd.concat(
                     [
                         self.waterbody_dataframe,
                         gl_wbody_df
                     ]
                 ).sort_index()
-                
+
                 self._gl_climatology_df = get_great_lakes_climatology()
-                
+
             else:
                 gl_dict = {}
                 self._gl_climatology_df = pd.DataFrame()
-            
+
             self._waterbody_types_df = pd.DataFrame(
-                data = 1, 
-                index = self.waterbody_dataframe.index, 
+                data = 1,
+                index = self.waterbody_dataframe.index,
                 columns = ['reservoir_type']).sort_index()
-            
+
             # Add Great Lakes waterbody type (6)
             self._waterbody_types_df.loc[gl_dict.keys(),'reservoir_type'] = 6
-              
+
             self._waterbody_type_specified = True
-            
+
         else:
 
             self.data_assimilation_parameters['reservoir_da']['reservoir_persistence_da']['reservoir_persistence_usgs'] = False
@@ -647,7 +648,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             # filter for 'Gages' only
             gages_df = gages_df[gages_df['type'].isin(['Gages','NID','gages'])]
             # Some IDs have multiple gages associated with them. This will expand the dataframe so
-            # there is a unique row per gage ID. Also adds lake ids to the dataframe for creating 
+            # there is a unique row per gage ID. Also adds lake ids to the dataframe for creating
             # lake-gage crosswalk dataframes.
             gages_df = gages_df[['id','value','hydroseq']]
             gages_df['value'] = gages_df.value.str.split(' ')
@@ -666,11 +667,11 @@ class HYFeaturesNetwork(AbstractNetwork):
                 .set_index(idx_id)[['value']].rename(columns={'value': 'gages'})
                 .rename_axis(None, axis=0).to_dict()
             )
-            
+
             #FIXME: temporary solution, add canadian gage crosswalk dataframe. This should come from
             # the hydrofabric.
             self._canadian_gage_link_df = pd.DataFrame(columns=['gages','link']).set_index('link')
-            
+
             # Find furthest downstream gage and create our lake_gage_df to make crosswalk dataframes.
             lake_gage_hydroseq_df = gages_df[~gages_df['lake_id'].isnull()][['lake_id', 'value', 'hydroseq']].rename(columns={'value': 'gages'})
             lake_gage_hydroseq_df['lake_id'] = lake_gage_hydroseq_df['lake_id'].astype(int)
@@ -679,8 +680,8 @@ class HYFeaturesNetwork(AbstractNetwork):
 
             #FIXME: temporary solution, handles USGS and USACE reservoirs. Need to update for
             # RFC reservoirs...
-            #NOTE: In the event a lake ID has multiple gages, this also finds the gage furthest 
-            # downstream (based on hydroseq) separately for USGS and USACE crosswalks. 
+            #NOTE: In the event a lake ID has multiple gages, this also finds the gage furthest
+            # downstream (based on hydroseq) separately for USGS and USACE crosswalks.
             usgs_ind = lake_gage_df.gages.str.isnumeric()
             self._usgs_lake_gage_crosswalk = (
                 lake_gage_df.loc[usgs_ind].rename(columns={'lake_id': 'usgs_lake_id', 'gages': 'usgs_gage_id'}).
@@ -703,14 +704,14 @@ class HYFeaturesNetwork(AbstractNetwork):
                 last().
                 drop('hydroseq', axis=1)
             )
-            
+
             # Set waterbody types if DA is turned on:
             usgs_da = self.data_assimilation_parameters.get('reservoir_da',{}).get('reservoir_persistence_da',{}).get('reservoir_persistence_usgs',False)
             usace_da = self.data_assimilation_parameters.get('reservoir_da',{}).get('reservoir_persistence_da',{}).get('reservoir_persistence_usace',False)
             rfc_da = self.data_assimilation_parameters.get('reservoir_da',{}).get('reservoir_rfc_da',{}).get('reservoir_rfc_forecasts',False)
             #NOTE: The order here matters. Some waterbody IDs have both a USGS gage designation and
             # a NID ID used for USACE gages. It seems the USGS gages should take precedent (based on
-            # gages in timeslice files), so setting type 2 reservoirs second should overwrite type 3 
+            # gages in timeslice files), so setting type 2 reservoirs second should overwrite type 3
             # designations
             #FIXME: Related to FIXME above, but we should re-think how to handle waterbody_types...
             if usace_da:
@@ -725,15 +726,15 @@ class HYFeaturesNetwork(AbstractNetwork):
                 self._waterbody_types_df.loc[self._rfc_lake_gage_crosswalk.index,'reservoir_type'] = 4
             else:
                 self._rfc_lake_gage_crosswalk = pd.DataFrame()
-            
+
         else:
             self._gages = {}
             self._usgs_lake_gage_crosswalk = pd.DataFrame()
             self._usace_lake_gage_crosswalk = pd.DataFrame()
             self._rfc_lake_gage_crosswalk = pd.DataFrame()
-    
+
     def build_qlateral_array(self, run,):
-        
+
         # TODO: set default/optional arguments
         qts_subdivisions = run.get("qts_subdivisions", 1)
         nts = run.get("nts", 1)
@@ -752,11 +753,11 @@ class HYFeaturesNetwork(AbstractNetwork):
                     "qlat_file_pattern_filter", "*CHRT_OUT*"
                 )
                 qlat_files = sorted(qlat_input_folder.glob(qlat_file_pattern_filter))
-            
+
             dfs=[]
-            
+
             #FIXME Temporary solution to allow t-route to use ngen nex-* output files as forcing files
-            # This capability should be here, but we need to think through how to handle all of this 
+            # This capability should be here, but we need to think through how to handle all of this
             # data in memory for large domains and many timesteps... - shorvath, Feb 28, 2024
             qlat_file_pattern_filter = self.forcing_parameters.get("qlat_file_pattern_filter", None)
             if qlat_file_pattern_filter in ["nex-*","cat-*"]:
@@ -767,7 +768,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                         areas = {}
                         for id, area in results:
                             areas[id] = area
-                            
+
                 qlat_column = self.forcing_parameters.get("qlat_file_value_col", None)
 
                 if qlat_file_pattern_filter == "cat-*":
@@ -782,7 +783,7 @@ class HYFeaturesNetwork(AbstractNetwork):
                     f = Path(f)
                     if qlat_file_pattern_filter=="nex-*":
                         df = pd.read_csv(f, names=['timestamp', 'qlat'], index_col=[0])
-                    else:              
+                    else:
                         df = pd.read_csv(f,usecols= ['Time', qlat_column])
                         df.rename(columns={'Time': 'timestamp', qlat_column: 'qlat'}, inplace=True)
                         cat_id = f.stem
@@ -813,9 +814,9 @@ class HYFeaturesNetwork(AbstractNetwork):
                     return df
 
                 with Parallel(n_jobs=-1) as p:
-                    dfs = p(delayed(process_file)(f) for f in qlat_files)                
+                    dfs = p(delayed(process_file)(f) for f in qlat_files)
                 # lateral flows [m^3/s] are stored at NEXUS points with NEXUS ids
-                lateralflows_df = pd.concat(dfs, axis=0) 
+                lateralflows_df = pd.concat(dfs, axis=0)
             else:
                 for f in qlat_files:
                     df = read_file(f)
@@ -825,16 +826,16 @@ class HYFeaturesNetwork(AbstractNetwork):
                     ].is_unique, f"'feature_id's must be unique. '{f!s}' contains duplicate 'feature_id's: {pformat(df.loc[df['feature_id'].duplicated(), 'feature_id'].to_list())}"
                     df = df.set_index('feature_id')
                     dfs.append(df)
-            
+
                 # lateral flows [m^3/s] are stored at NEXUS points with NEXUS ids (if using the nex-* prefix)
-                lateralflows_df = pd.concat(dfs, axis=1) 
-            
+                lateralflows_df = pd.concat(dfs, axis=1)
+
             qlats_df = lateralflows_df
-            
+
             if qlat_file_pattern_filter != "cat-*":
-                # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids            
+                # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids
                 qlats_df.rename(index=self.downstream_flowpath_dict, inplace=True)
-            
+
             qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]
 
             '''
@@ -863,8 +864,8 @@ class HYFeaturesNetwork(AbstractNetwork):
                 qlats_df.drop(tnx, inplace=True)
             '''
 
-            # The segment_index has the full network set of segments/flowpaths. 
-            # Whereas the set of flowpaths that are downstream of nexuses is a 
+            # The segment_index has the full network set of segments/flowpaths.
+            # Whereas the set of flowpaths that are downstream of nexuses is a
             # subset of the segment_index. Therefore, all of the segments/flowpaths
             # that are not accounted for in the set of flowpaths downstream of
             # nexuses need to be added to the qlateral dataframe and padded with
@@ -898,8 +899,8 @@ class HYFeaturesNetwork(AbstractNetwork):
     ######################################################################
     #FIXME Temporary solution to hydrofabric issues.
     def bandaid(self,):
-        
-        # Identify waterbody IDs that have problematic data. There are underlying stream 
+
+        # Identify waterbody IDs that have problematic data. There are underlying stream
         # segments that should be referenced to the waterbody ID, but are not. This causes
         # our connections dictionary to have multiple downstream segments for waterbodies which
         # is not allowed:
@@ -908,7 +909,7 @@ class HYFeaturesNetwork(AbstractNetwork):
 
         wbody_conn_df = self.dataframe['waterbody'].dropna().astype(int).reset_index()
         wbody_conn_df = wbody_conn_df[wbody_conn_df['waterbody'].isin(lake_id)]
-        
+
         conn_df2 = (
             conn_df
             .merge(wbody_conn_df, on='key', how='left')
@@ -922,14 +923,14 @@ class HYFeaturesNetwork(AbstractNetwork):
             .query('key != downstream')
             .astype(int)
         )
-        
+
         # Find missing segments
         bad_lake_ids = conn_df2.loc[conn_df2.duplicated(subset=['key'])].key.unique()
         # Drop waterbodies that are problematic. Instead t-route will simply treat them as
         # flowpaths and run MC routing.
         self._waterbody_df = self.waterbody_dataframe.drop(bad_lake_ids)
 
-        #This chunk replaces waterbody_id 1711354 with 1710676. I don't know where the 
+        #This chunk replaces waterbody_id 1711354 with 1710676. I don't know where the
         #former came from, but the latter is listed in the flowpath_attributes table
         #and exists in NWMv2.1 LAKEPARM file. See hydrofabric github issue 16:
         #https://github.com/NOAA-OWP/hydrofabric/issues/16
@@ -944,7 +945,7 @@ class HYFeaturesNetwork(AbstractNetwork):
         if destination_folder:
 
             output_filename = self.preprocessing_parameters.get(
-                'preprocess_output_filename', 
+                'preprocess_output_filename',
                 'preprocess_output'
             )
 
@@ -968,7 +969,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             Path(destination_folder).joinpath(output_filename),
             outputs
             )
-    
+
     def read_preprocessed_data(self,):
         preprocess_filepath = self.preprocessing_parameters.get('preprocess_source_file',None)
         if preprocess_filepath:
@@ -977,7 +978,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             except:
                 #LOG.critical('Canonot find %s' % Path(preprocess_filepath))
                 quit()
-                
+
             self._dataframe = inputs.get('dataframe',None)
             self._flowpath_dict = inputs.get('flowpath_dict',None)
             self._terminal_codes = inputs.get('terminal_codes',None)
@@ -1013,20 +1014,20 @@ def read_file(file_name):
 def tailwaters(N):
     '''
     Find network tailwaters
-    
+
     Arguments
     ---------
     N (dict, int: [int]): Network connections graph
-    
+
     Returns
     -------
     (iterable): tailwater segments
-    
+
     Notes
     -----
     - If reverse connections graph is handed as input, then function
       will return network headwaters.
-      
+
     '''
     tw = chain.from_iterable(N.values()) - N.keys()
     for m, n in N.items():
@@ -1069,7 +1070,7 @@ def replace_waterbodies_connections(connections, waterbodies):
     Use a single node to represent waterbodies. The node id is the
     waterbody id. Create a cross walk dictionary that relates lake_ids
     to the terminal segments within the waterbody footprint.
-    
+
     Arguments
     ---------
     - connections (dict):
@@ -1078,11 +1079,11 @@ def replace_waterbodies_connections(connections, waterbodies):
 
     Returns
     -------
-    - new_conn  (dict): connections dictionary with waterbodies represented by single nodes. 
+    - new_conn  (dict): connections dictionary with waterbodies represented by single nodes.
                         Waterbody node ids are lake_ids
     - link_lake (dict): cross walk dictionary where keys area lake_ids and values are lists
-                        of waterbody tailwater nodes (i.e. the nodes connected to the 
-                        waterbody outlet). 
+                        of waterbody tailwater nodes (i.e. the nodes connected to the
+                        waterbody outlet).
     """
     new_conn = {}
     link_lake = {}
@@ -1099,7 +1100,7 @@ def replace_waterbodies_connections(connections, waterbodies):
             wbody_nodes = [k for k, v in waterbodies.items() if v == wbody_code]
             outgoing = reservoir_shore(connections, wbody_nodes)
             new_conn[wbody_code] = outgoing
-            
+
             if len(outgoing)>=1:
                 if outgoing[0] in waterbodies:
                     new_conn[wbody_code] = [waterbodies.get(outgoing[0])]
@@ -1121,5 +1122,5 @@ def replace_waterbodies_connections(connections, waterbodies):
         else:
             # copy to new network unchanged
             new_conn[n] = connections[n]
-    
+
     return new_conn, link_lake

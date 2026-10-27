@@ -20,25 +20,25 @@ LOG = logging.getLogger('')
 
 def build_da_sets(da_params, run_sets, t0):
     """
-    Create set lists of USGS and/or USACE TimeSlice files used for 
+    Create set lists of USGS and/or USACE TimeSlice files used for
     streamflow and reservoir data assimilation
-    
+
     Arguments
     --------
     - da_params (dict): user-input data assimilation parameters
     - run_sets (list) : forcing files for each run set in the simlation
     - t0 (datetime)   : model initialization time
-    
+
     Returns
     -------
-    - da_sets (list)  : lists of USGS and USACE TimeSlice files for each run set 
+    - da_sets (list)  : lists of USGS and USACE TimeSlice files for each run set
                         in the simulation
-    
+
     Notes
     -----
-    
+
     """
-    
+
     # check for user-input usgs and usace timeslice directories
     usgs_timeslices_folder = da_params.get(
         "usgs_timeslices_folder",
@@ -55,7 +55,7 @@ def build_da_sets(da_params, run_sets, t0):
     LakeOntario_outflow = da_params.get(
         "LakeOntario_outflow",
         None
-    )     
+    )
     # User-specified DA ON/OFF preferences
     usace_da = False
     usgs_da = False
@@ -67,22 +67,24 @@ def build_da_sets(da_params, run_sets, t0):
         GreatLakes_da = reservoir_persistence_da.get('reservoir_persistence_greatLake', False)
 
     nudging = False
+    ekf = False
     streamflow_da = da_params.get('streamflow_da', False)
     if streamflow_da:
         nudging = streamflow_da.get('streamflow_nudging', False)
-        
-    if not usgs_da and not usace_da and not GreatLakes_da and not nudging:
+        ekf = streamflow_da.get('streamflow_ekf', False)
+
+    if not usgs_da and not usace_da and not GreatLakes_da and not nudging and not ekf:
         # if all DA capabilities are OFF, return empty dictionary
         da_sets = [{} for _ in run_sets]
-    
+
     # if no user-input timeslice folders, a list of empty dictionaries
     elif not usgs_timeslices_folder and not usace_timeslices_folder and not canada_timeslices_folder:
         # if no timeslice folders, return empty dictionary
         da_sets = [{} for _ in run_sets]
-        
+
     # if user-input timeslice folders are present, build TimeSlice sets
     else:
-        
+
         # create Path objects for each TimeSlice directory
         if usgs_timeslices_folder:
             usgs_timeslices_folder = pathlib.Path(usgs_timeslices_folder)
@@ -105,7 +107,7 @@ def build_da_sets(da_params, run_sets, t0):
 
         # Loop through each run set and build lists of available TimeSlice files
         for (i, set_dict) in enumerate(run_sets):
-            
+
             # Append an empty dictionary to the loop, which be used to hold
             # lists of USGS and USACE TimeSlice files.
             da_sets.append({})
@@ -119,85 +121,85 @@ def build_da_sets(da_params, run_sets, t0):
 
             # identify available USGS TimeSlices in run set i
             if (usgs_timeslices_folder and nudging) or (usgs_timeslices_folder and usgs_da):
-                filenames_usgs = (timestamps.strftime('%Y-%m-%d_%H:%M:%S') 
+                filenames_usgs = (timestamps.strftime('%Y-%m-%d_%H:%M:%S')
                             + '.15min.usgsTimeSlice.ncdf').to_list()
-                
+
                 # identify available USGS TimeSlices
                 filenames_usgs = _check_timeslice_exists(
-                    filenames_usgs, 
+                    filenames_usgs,
                     usgs_timeslices_folder
                 )
-                
+
                 # Add available TimeSlices to da_sets list
                 da_sets[i]['usgs_timeslice_files'] = filenames_usgs
-                
+
             # identify available USACE TimeSlices in run set i
             if usace_timeslices_folder and usace_da:
-                filenames_usace = (timestamps.strftime('%Y-%m-%d_%H:%M:%S') 
+                filenames_usace = (timestamps.strftime('%Y-%m-%d_%H:%M:%S')
                             + '.15min.usaceTimeSlice.ncdf').to_list()
-                
+
                 # identify available USACE TimeSlices
                 filenames_usace = _check_timeslice_exists(
-                    filenames_usace, 
+                    filenames_usace,
                     usace_timeslices_folder
                 )
-                
+
                 # Add available TimeSlices to da_sets list
                 da_sets[i]['usace_timeslice_files'] = filenames_usace
 
             # identify available USGS TimeSlices in run set i
             if canada_timeslices_folder and GreatLakes_da:
-                filenames_canada = (timestamps.strftime('%Y-%m-%d_%H:%M:%S') 
+                filenames_canada = (timestamps.strftime('%Y-%m-%d_%H:%M:%S')
                             + '.15min.wscTimeSlice.ncdf').to_list()
 
                 # identify available USGS TimeSlices
                 filenames_canada = _check_timeslice_exists(
-                    filenames_canada, 
+                    filenames_canada,
                     canada_timeslices_folder
                 )
                 # Add available TimeSlices to da_sets list
                 da_sets[i]['canada_timeslice_files'] = filenames_canada
             if LakeOntario_outflow:
-                da_sets[i]['LakeOntario_outflow'] = LakeOntario_outflow                
+                da_sets[i]['LakeOntario_outflow'] = LakeOntario_outflow
             # reset initialization time for loop set i+1
             t0 = run_sets[i]['final_timestamp']
-            
+
     return da_sets
 
 def _check_timeslice_exists(filenames, timeslices_folder):
     """
-    Check that each TimeSlice file in a list of files exists. Return a list of 
+    Check that each TimeSlice file in a list of files exists. Return a list of
     available files.
-    
+
     Arguments
     ---------
     - filenames               (list of str): TimeSlice filenames
     - timeslices_folder (pathlib.PosixPath): TimeSlice directory
-    
+
     Returns
     -------
-    - filenames_existing (list of chr): Existing TimeSlice filenames in 
+    - filenames_existing (list of chr): Existing TimeSlice filenames in
                                         TimeSlice directory
-    
+
     Notes
     -----
     - This is a utility function used by build_da_sets
-    
+
     """
-    
+
     # check that all USGS TimeSlice files in the set actually exist
     drop_list = []
     for f in filenames:
         try:
-            J = pathlib.Path(timeslices_folder.joinpath(f))     
+            J = pathlib.Path(timeslices_folder.joinpath(f))
             assert J.is_file() == True
         except AssertionError:
             LOG.warning("Missing TimeSlice file %s", J)
             drop_list.append(f)
 
     # Assemble a list of existing TimeSlice files, only
-    filenames_existing = [x for x in filenames if x not in drop_list]   
-    
+    filenames_existing = [x for x in filenames if x not in drop_list]
+
     return filenames_existing
 
 def build_forcing_sets(
@@ -240,9 +242,9 @@ def build_forcing_sets(
         nexus_input_folder, forcing_glob_filter = nex_files_to_binary(nexus_files_list, binary_folder)
         forcing_parameters["nexus_input_folder"] = nexus_input_folder
         forcing_parameters["nexus_file_pattern_filter"] = forcing_glob_filter
-        
+
     # TODO: Throw errors if insufficient input data are available
-    if run_sets:        
+    if run_sets:
         #FIXME: Change it for hyfeature
         '''
         # append final_timestamp variable to each set_list
@@ -254,8 +256,8 @@ def build_forcing_sets(
                     'model_output_valid_time')
             run_sets[s]['final_timestamp'] = \
                 datetime.strptime(final_timestamp_str, '%Y-%m-%d_%H:%M:%S')
-        '''  
-    elif nexus_input_folder:        
+        '''
+    elif nexus_input_folder:
         # Construct run_set dictionary from user-specified parameters
 
         # get the first and seconded files from an ordered list of all forcing files
@@ -284,29 +286,29 @@ def build_forcing_sets(
 
         # the number of files required for the simulation
         nfiles = int(np.ceil(nts / qts_subdivisions))
-        
+
         # list of forcing file datetimes
         #datetime_list = [t0 + dt_qlat_timedelta * (n + 1) for n in
         #                 range(nfiles)]
         # ** Correction ** Because qlat file at time t is constantly applied throughout [t, t+1],
         #               ** n + 1 should be replaced by n
         datetime_list = [t0 + dt_qlat_timedelta * (n) for n in
-                         range(nfiles)]        
+                         range(nfiles)]
         datetime_list_str = [datetime.strftime(d, '%Y%m%d%H%M') for d in
                              datetime_list]
 
         # list of forcing files
         forcing_filename_list = [d_str + forcing_glob_filter[1:] for d_str in
                                  datetime_list_str]
-        
+
         # check that all forcing files exist
         for f in forcing_filename_list:
             try:
-                J = pathlib.Path(nexus_input_folder.joinpath(f))     
+                J = pathlib.Path(nexus_input_folder.joinpath(f))
                 assert J.is_file() == True
             except AssertionError:
                 raise AssertionError("Aborting simulation because forcing file", J, "cannot be not found.") from None
-                
+
         # build run sets list
         run_sets = []
         k = 0
@@ -330,12 +332,12 @@ def build_forcing_sets(
                 run_sets[j]['nts'] = int(nts - nts_last)
 
             final_nexout        = nexus_input_folder.joinpath(run_sets[j]['nexus_files'
-                    ][-1])            
+                    ][-1])
             #final_timestamp_str = nhd_io.get_param_str(final_nexout,
             #        'model_output_valid_time')
             df                  = read_file(final_nexout)
-            final_timestamp_str = pd.to_datetime(df.columns[1]).strftime("%Y-%m-%d_%H:%M:%S")           
-            
+            final_timestamp_str = pd.to_datetime(df.columns[1]).strftime("%Y-%m-%d_%H:%M:%S")
+
             run_sets[j]['final_timestamp'] = \
                 datetime.strptime(final_timestamp_str, '%Y-%m-%d_%H:%M:%S')
 
@@ -348,7 +350,7 @@ def build_forcing_sets(
 def build_qlateral_array(
     run,
     cpu_pool,
-    nexus_to_upstream_flowpath_dict, 
+    nexus_to_upstream_flowpath_dict,
     segment_index=pd.Index([]),
     ts_iterator=None,
     file_run_size=None,
@@ -388,7 +390,7 @@ def build_qlateral_array(
                     #delayed(nhd_io.get_ql_from_chrtout)
                     #(f, qlat_file_value_col, gw_bucket_col, terrain_ro_col)
                     delayed(nhd_io.get_ql_from_csv)
-                    (f)                    
+                    (f)
                 )
             ql_list = parallel(jobs)
 
@@ -401,25 +403,25 @@ def build_qlateral_array(
             np.stack(ql_list).T,
             index = idx,
             columns = range(len(qlat_files))
-        )    
+        )
         '''
         dfs=[]
         for f in nexus_files:
-            df = read_file(f).set_index(['feature_id']) 
+            df = read_file(f).set_index(['feature_id'])
             dfs.append(df)
-        
+
         # lateral flows [m^3/s] are stored at NEXUS points with NEXUS ids
-        nexuses_lateralflows_df = pd.concat(dfs, axis=1)  
-        
-        # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids 
+        nexuses_lateralflows_df = pd.concat(dfs, axis=1)
+
+        # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids
         qlats_df = pd.concat( (nexuses_lateralflows_df.loc[int(k)].rename(v)
                             for k,v in nexus_to_upstream_flowpath_dict.items() ), axis=1
-                            ).T 
+                            ).T
         qlats_df.columns=range(len(nexus_files))
         qlats_df = qlats_df[qlats_df.index.isin(segment_index)]
- 
-        # The segment_index has the full network set of segments/flowpaths. 
-        # Whereas the set of flowpaths that are downstream of nexuses is a 
+
+        # The segment_index has the full network set of segments/flowpaths.
+        # Whereas the set of flowpaths that are downstream of nexuses is a
         # subset of the segment_index. Therefore, all of the segments/flowpaths
         # that are not accounted for in the set of flowpaths downstream of
         # nexuses need to be added to the qlateral dataframe and padded with
@@ -427,7 +429,7 @@ def build_qlateral_array(
         all_df = pd.DataFrame( np.zeros( (len(segment_index), len(qlats_df.columns)) ), index=segment_index,
                     columns=qlats_df.columns )
         all_df.loc[ qlats_df.index ] = qlats_df
-        qlats_df = all_df.sort_index()    
+        qlats_df = all_df.sort_index()
     elif qlat_input_file:
         qlats_df = nhd_io.get_ql_from_csv(qlat_input_file)
     else:
@@ -453,7 +455,7 @@ def nex_files_to_binary(nexus_files, binary_folder):
     for f in nexus_files:
         # read the csv file
         df = pd.read_csv(f, usecols=[1,2], names=['Datetime','qlat'])
-        
+
         # convert and reformat datetime column
         df['Datetime']= pd.to_datetime(df['Datetime']).dt.strftime("%Y%m%d%H%M")
 
@@ -464,15 +466,15 @@ def nex_files_to_binary(nexus_files, binary_folder):
 
         for col in df.columns:
             table_new = pa.Table.from_pandas(df.loc[:, [col]])
-            
+
             if not os.path.exists(f'{binary_folder}/{col}NEXOUT.parquet'):
                 pq.write_table(table_new, f'{binary_folder}/{col}NEXOUT.parquet')
-            
+
             else:
                 table_old = pq.read_table(f'{binary_folder}/{col}NEXOUT.parquet')
                 table = pa.concat_tables([table_old,table_new])
                 pq.write_table(table, f'{binary_folder}/{col}NEXOUT.parquet')
-    
+
     nexus_input_folder = binary_folder
     forcing_glob_filter = '*NEXOUT.parquet'
 
@@ -489,5 +491,5 @@ def read_file(file_name):
     elif extension=='.parquet':
         df = pq.read_table(file_name).to_pandas().reset_index()
         df.index.name = None
-    
+
     return df

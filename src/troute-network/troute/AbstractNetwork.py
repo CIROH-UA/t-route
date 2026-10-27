@@ -15,17 +15,17 @@ import xarray as xr
 
 from troute.nhd_network import extract_connections, replace_waterbodies_connections, reverse_network, reachable_network, split_at_waterbodies_and_junctions, split_at_junction, dfs_decomposition
 from troute.nhd_network_utilities_v02 import organize_independent_networks
-import troute.nhd_io as nhd_io 
+import troute.nhd_io as nhd_io
 from .AbstractRouting import MCOnly, MCwithDiffusive, MCwithDiffusiveNatlXSectionNonRefactored, MCwithDiffusiveNatlXSectionRefactored
 
 LOG = logging.getLogger('')
 
 class AbstractNetwork(ABC):
     """
-    
+
     """
-    __slots__ = ["_dataframe", "_waterbody_connections", "_gages",  
-                "_terminal_codes", "_connections", "_waterbody_df", 
+    __slots__ = ["_dataframe", "_waterbody_connections", "_gages",
+                "_terminal_codes", "_connections", "_waterbody_df",
                 "_waterbody_types_df", "_waterbody_type_specified", "_link_gage_df",
                 "_canadian_gage_link_df",
                 "_independent_networks", "_reaches_by_tw", "_flowpath_dict",
@@ -37,7 +37,7 @@ class AbstractNetwork(ABC):
                 "hybrid_parameters", "preprocessing_parameters", "output_parameters",
                 "verbose", "showtiming", "break_points", "_routing", "_gl_climatology_df", "_nexus_dict", "_poi_nex_dict"]
 
-    
+
     def __init__(self, from_files=True, value_dict={}):
 
         self._independent_networks = None
@@ -58,11 +58,12 @@ class AbstractNetwork(ABC):
             dtype="float32",
         )
         """
-        break_network_at_waterbodies = self.waterbody_parameters.get("break_network_at_waterbodies", False)        
+        break_network_at_waterbodies = self.waterbody_parameters.get("break_network_at_waterbodies", False)
         streamflow_da = self.data_assimilation_parameters.get('streamflow_da', False)
-        break_network_at_gages       = False       
+        break_network_at_gages       = False
         if streamflow_da:
-            break_network_at_gages   = streamflow_da.get('streamflow_nudging', False)
+            if streamflow_da.get('streamflow_nudging', False) or streamflow_da.get('streamflow_ekf', False):
+                break_network_at_gages   = True
         self.break_points            = {"break_network_at_waterbodies": break_network_at_waterbodies,
                                         "break_network_at_gages": break_network_at_gages}
 
@@ -72,7 +73,7 @@ class AbstractNetwork(ABC):
             self._break_segments = self._break_segments | set(self.waterbody_connections.values())
         if self.break_points["break_network_at_gages"]:
             self._break_segments = self._break_segments | set(self.gages.get('gages',{}).keys())
-        
+
         self.initialize_routing_scheme()
 
         self.create_independent_networks()
@@ -84,20 +85,20 @@ class AbstractNetwork(ABC):
         """
         Assemble model forcings. Forcings include hydrological lateral inflows (qlats)
         and coastal boundary depths for hybrid runs
-        
+
         Aguments
         --------
-        - run                          (dict): List of forcing files pertaining to a 
+        - run                          (dict): List of forcing files pertaining to a
                                                single run-set
 
         Returns
         -------
-        
+
         Notes
         -----
-        
+
         """
-    
+
         # Unpack user-specified forcing parameters
         dt                           = self.forcing_parameters.get("dt", None)
         qts_subdivisions             = self.forcing_parameters.get("qts_subdivisions", None)
@@ -107,7 +108,7 @@ class AbstractNetwork(ABC):
         qlat_file_gw_bucket_flux_col = self.forcing_parameters.get("qlat_file_gw_bucket_flux_col", "qBucket")
         qlat_file_terrain_runoff_col = self.forcing_parameters.get("qlat_file_terrain_runoff_col", "qSfcLatRunoff")
 
-    
+
         # TODO: find a better way to deal with these defaults and overrides.
         run["t0"]                           = run.get("t0", self.t0)
         run["dt"]                           = run.get("dt", dt)
@@ -117,7 +118,7 @@ class AbstractNetwork(ABC):
         run["qlat_file_value_col"]          = run.get("qlat_file_value_col", qlat_file_value_col)
         run["qlat_file_gw_bucket_flux_col"] = run.get("qlat_file_gw_bucket_flux_col", qlat_file_gw_bucket_flux_col)
         run["qlat_file_terrain_runoff_col"] = run.get("qlat_file_terrain_runoff_col", qlat_file_terrain_runoff_col)
-        
+
         #---------------------------------------------------------------------------
         # Assemble lateral inflow data
         #---------------------------------------------------------------------------
@@ -130,7 +131,7 @@ class AbstractNetwork(ABC):
         self.build_qlateral_array(
             run,
         )
-        
+
         LOG.debug(
             "lateral inflow DataFrame creation complete in %s seconds." \
                 % (time.time() - start_time)
@@ -141,14 +142,14 @@ class AbstractNetwork(ABC):
         #---------------------------------------------------------------------
         # Run if coastal_boundary_depth_df has not already been created:
         if self._coastal_boundary_depth_df.empty:
-            coastal_boundary_elev_files = self.forcing_parameters.get('coastal_boundary_input_file', None) 
-            coastal_boundary_domain_files = self.hybrid_parameters.get('coastal_boundary_domain', None)    
-            
+            coastal_boundary_elev_files = self.forcing_parameters.get('coastal_boundary_input_file', None)
+            coastal_boundary_domain_files = self.hybrid_parameters.get('coastal_boundary_domain', None)
+
             if coastal_boundary_elev_files:
-                start_time = time.time()    
+                start_time = time.time()
                 LOG.info("creating coastal dataframe ...")
                 '''
-                coastal_boundary_domain   = nhd_io.read_coastal_boundary_domain(coastal_boundary_domain_files)          
+                coastal_boundary_domain   = nhd_io.read_coastal_boundary_domain(coastal_boundary_domain_files)
                 self._coastal_boundary_depth_df = nhd_io.build_coastal_ncdf_dataframe(
                     coastal_boundary_elev_files,
                     coastal_boundary_domain,
@@ -159,20 +160,20 @@ class AbstractNetwork(ABC):
 
                 if (coastal_boundary_domain_files):
 
-                    coastal_boundary_domain   = nhd_io.read_coastal_boundary_domain(str(coastal_boundary_domain_files))          
+                    coastal_boundary_domain   = nhd_io.read_coastal_boundary_domain(str(coastal_boundary_domain_files))
 
                     if ('coastal_hy_crosswalk' in coastal_boundary_domain.keys()):
 
                         coastal_hy_crosswalk = coastal_boundary_domain['coastal_hy_crosswalk']
 
                 self._coastal_boundary_depth_df = read_coastal_output(coastal_boundary_elev_files, coastal_hy_crosswalk)
-                
+
                 LOG.debug(
                     "coastal boundary elevation observation DataFrame creation complete in %s seconds." \
                     % (time.time() - start_time)
                 )
             else:
-                self._coastal_boundary_depth_df = pd.DataFrame()            
+                self._coastal_boundary_depth_df = pd.DataFrame()
 
     def new_q0(self, run_results):
         """
@@ -189,14 +190,14 @@ class AbstractNetwork(ABC):
             copy=False,
         )
         return self._q0
-    
-    def update_waterbody_water_elevation(self):           
+
+    def update_waterbody_water_elevation(self):
         """
         Update the starting water_elevation of each lake/reservoir
         with flow and depth values from q0
         """
         self._waterbody_df.update(self._q0)
-        
+
     def new_t0(self, dt, nts):
         """
         Update t0 value for next loop iteration
@@ -212,7 +213,7 @@ class AbstractNetwork(ABC):
     @property
     def reverse_network(self):
         """
-        
+
         """
         if self._reverse_network is None:
             self._reverse_network = reverse_network(self.connections)
@@ -221,7 +222,7 @@ class AbstractNetwork(ABC):
     @property
     def independent_networks(self):
         """
-        
+
         """
         if self._independent_networks is None:
             # STEP 2: Identify Independent Networks and Reaches by Network
@@ -231,17 +232,17 @@ class AbstractNetwork(ABC):
                 print("organizing connections into reaches ...")
 
             self._independent_networks = reachable_network(self.reverse_network)
-            
+
             if self.verbose:
                 print("reach organization complete")
             if self.showtiming:
                 print("... in %s seconds." % (time.time() - start_time))
         return self._independent_networks
-    
+
     @property
     def reaches_by_tailwater(self):
         """
-        
+
         """
         if self._reaches_by_tw is None:
             self._reaches_by_tw = {}
@@ -259,17 +260,17 @@ class AbstractNetwork(ABC):
     @property
     def waterbody_dataframe(self):
         return self._waterbody_df
-    
+
     @property
     def waterbody_types_dataframe(self):
         return self._waterbody_types_df
-    
+
     @property
     def waterbody_type_specified(self):
         if self._waterbody_type_specified is None:
             self._waterbody_type_specified = False
         return self._waterbody_type_specified
-    
+
     @property
     def link_lake_crosswalk(self):
         return self._link_lake_crosswalk
@@ -285,7 +286,7 @@ class AbstractNetwork(ABC):
     @property
     def qlateral(self):
         """
-        
+
         """
         return self._qlateral
 
@@ -314,13 +315,13 @@ class AbstractNetwork(ABC):
     @t0.setter
     def t0(self, value):
         """
-        
+
         """
         if isinstance(value, datetime):
             self._t0 = value
         else:
             self._t0 = datetime.strptime(value, "%Y-%m-%d_%H:%M:%S")
-    
+
     @property
     def segment_index(self):
         """
@@ -335,7 +336,7 @@ class AbstractNetwork(ABC):
                     pd.Index(self._routing.diffusive_network_data[tw]['mainstem_segs'])
                 )
         return self._segment_index
-    
+
     @property
     def link_gage_df(self):
         if self._link_gage_df is None:
@@ -346,11 +347,11 @@ class AbstractNetwork(ABC):
     @property
     def usgs_lake_gage_crosswalk(self):
         return self._usgs_lake_gage_crosswalk
-    
+
     @property
     def usace_lake_gage_crosswalk(self):
         return self._usace_lake_gage_crosswalk
-    
+
     @property
     def rfc_lake_gage_crosswalk(self):
         return self._rfc_lake_gage_crosswalk
@@ -373,11 +374,11 @@ class AbstractNetwork(ABC):
     @property
     def dataframe(self):
         return self._dataframe
-    
+
     @property
     def nexus_dict(self):
         return self._nexus_dict
-    
+
     @property
     def poi_nex_dict(self):
         return self._poi_nex_dict
@@ -385,46 +386,46 @@ class AbstractNetwork(ABC):
     @property
     def terminal_codes(self):
         return self._terminal_codes
-    
+
     @property
     def coastal_boundary_depth_df(self):
         """
-        
+
         """
         return self._coastal_boundary_depth_df
 
     @property
     def diffusive_network_data(self):
         return self._routing.diffusive_network_data
-    
+
     @property
     def topobathy_df(self):
         return self._routing.topobathy_df
-    
+
     @property
     def refactored_diffusive_domain(self):
         return self._routing.refactored_diffusive_domain
-    
+
     @property
     def refactored_reaches(self):
         return self._routing.refactored_reaches
-    
+
     @property
     def unrefactored_topobathy_df(self):
         return self._routing.unrefactored_topobathy_df
-    
+
     @property
     def great_lakes_climatology_df(self):
         return self._gl_climatology_df
-    
+
     @property
     def canadian_gage_df(self):
         return self._canadian_gage_link_df
 
-        
+
     def set_synthetic_wb_segments(self, synthetic_wb_segments, synthetic_wb_id_offset):
         """
-        
+
         """
         self._dataframe.reset_index(inplace=True) #reset index so key is now column
         # rename the current key column to key32
@@ -453,18 +454,18 @@ class AbstractNetwork(ABC):
 
     def set_index(self, key):
         """
-        
+
         """
         #If the index name is already `key`, don't bother
         if self._dataframe.index.name != key:
             self._dataframe.set_index(key, inplace=True)
-    
+
     def sort_index(self):
         """
-        
+
         """
         self._dataframe = self._dataframe.sort_index()
-    
+
     def drop(self, key, axis=1):
         """
             FIXME can be problematic to drop keys
@@ -474,16 +475,16 @@ class AbstractNetwork(ABC):
 
     def astype(self, type, columns=None):
         """
-        
+
         """
         if columns:
             self._dataframe[columns] = self._dataframe[columns].astype(type)
         else:
             self._dataframe = self._dataframe.astype(type)
-            
+
     def initialize_routing_scheme(self,):
         '''
-        
+
         '''
         # Get user inputs from configuration file
         run_hybrid = self.hybrid_parameters.get("run_hybrid_routing", False)
@@ -498,7 +499,7 @@ class AbstractNetwork(ABC):
             MCwithDiffusiveNatlXSectionNonRefactored: [True, True, False],
             MCwithDiffusiveNatlXSectionRefactored: [True, True, True],
             }
-        
+
         # Default to MCOnly routing
         routing_scheme = MCOnly
 
@@ -519,38 +520,38 @@ class AbstractNetwork(ABC):
         hyf = self.supernetwork_parameters.get('network_type', None)=='HYFeaturesNetwork'
         if hyf and routing.diffusive_network_data:
             self.filter_diffusive_nexus_pts()
-    
+
     def create_independent_networks(self,):
 
         LOG.info("organizing connections into reaches ...")
-        start_time = time.time() 
+        start_time = time.time()
         gage_break_segments = set()
         wbody_break_segments = set()
-        
+
         break_network_at_waterbodies = self.waterbody_parameters.get(
             "break_network_at_waterbodies", False
         )
-        
+
         # if streamflow DA, then break network at gages
         #TODO update to work with HYFeatures, need to determine how we'll do DA...
         break_network_at_gages = False
-        
+
         if break_network_at_waterbodies:
             wbody_break_segments = wbody_break_segments.union(self._waterbody_connections.values())
-            
+
         if break_network_at_gages:
             gage_break_segments = gage_break_segments.union(self.gages['gages'].keys())
-    
+
         (
-            self._independent_networks, 
-            self._reaches_by_tw, 
+            self._independent_networks,
+            self._reaches_by_tw,
             self._reverse_network
             ) = organize_independent_networks(
                 self.connections,
                 wbody_break_segments,
                 gage_break_segments,
                 )
-        
+
         LOG.debug("reach organization complete in %s seconds." % (time.time() - start_time))
 
     def initial_warmstate_preprocess(self, from_files, value_dict):
@@ -560,13 +561,13 @@ class AbstractNetwork(ABC):
             - waterbody inital states (outflow and pool elevation)
             - channel initial states (flow and depth)
             - initial time
-        
+
         Arguments
         ---------
-        
+
         Returns
         -------
-        
+
         Notes
         -----
         '''
@@ -587,11 +588,11 @@ class AbstractNetwork(ABC):
             if from_files:
                 # if a lite restart file is provided, read initial states from it.
                 if restart_parameters.get("lite_waterbody_restart_file", None):
-                    
+
                     waterbodies_initial_states_df, _ = nhd_io.read_lite_restart(
                         restart_parameters['lite_waterbody_restart_file']
                     )
-                    
+
                 # read waterbody initial states from WRF-Hydro type restart file
                 elif restart_parameters.get("wrf_hydro_waterbody_restart_file", None):
                     waterbodies_initial_states_df = nhd_io.get_reservoir_restart_from_wrf_hydro(
@@ -604,7 +605,7 @@ class AbstractNetwork(ABC):
                             'NHDWaterbodyComID'
                         ),
                     )
-                
+
                 # if no restart file is provided, default initial states
                 else:
                     # TODO: Consider adding option to read cold state from route-link file
@@ -626,7 +627,7 @@ class AbstractNetwork(ABC):
                     waterbodies_initial_states_df["index"] = range(
                         len(waterbodies_initial_states_df)
                     )
-            
+
             else:
                 waterbodies_initial_states_df = value_dict['waterbody_df']
                 waterbodies_initial_states_ids = value_dict['waterbody_df_index']
@@ -658,7 +659,7 @@ class AbstractNetwork(ABC):
                     waterbodies_initial_states_df["index"] = range(
                         len(waterbodies_initial_states_df)
                     )
-            
+
             if len(self.waterbody_dataframe) > 0:
                 self._waterbody_df = pd.merge(
                     self.waterbody_dataframe, waterbodies_initial_states_df, on=index_id
@@ -677,7 +678,7 @@ class AbstractNetwork(ABC):
         #   1. From t-route generated lite restart file (network agnostic)
         #   2. From wrf_hydro_restart file (valid for NHDNetwork only)
         #   3. Cold start, requires user specified start datetime
-        #----------------------------------------------------------------------------    
+        #----------------------------------------------------------------------------
         start_time = time.time()
         LOG.info("setting channel initial states ...")
 
@@ -687,7 +688,7 @@ class AbstractNetwork(ABC):
                 self._q0, self._t0 = nhd_io.read_lite_restart(
                     restart_parameters['lite_channel_restart_file']
                 )
-            
+
             elif restart_parameters.get("wrf_hydro_channel_restart_file", None):
                 if restart_parameters.get("wrf_hydro_channel_restart_input_type", None) == "reorder":
                     channel_restart_reader = nhd_io.get_channel_restart_from_wrf_hydro_reorder
@@ -703,13 +704,13 @@ class AbstractNetwork(ABC):
                     )
 
                 t0_str = nhd_io.get_param_str(
-                        restart_parameters["wrf_hydro_channel_restart_file"], 
+                        restart_parameters["wrf_hydro_channel_restart_file"],
                         "Restart_Time"
                     )
-                
+
                 # convert timestamp from string to datetime
                 self._t0 = datetime.strptime(t0_str, "%Y-%m-%d_%H:%M:%S")
-            
+
             else:
                 # Set cold initial state
                 # assume to be zero
@@ -717,10 +718,10 @@ class AbstractNetwork(ABC):
                 self._q0 = pd.DataFrame(
                     0, index=self.segment_index, columns=["qu0", "qd0", "h0"], dtype="float32",
                     )
-                
+
                 # get initial time from user inputs
                 self._t0 = restart_parameters.get("start_datetime")
-        
+
         else:
             q0 = value_dict['q0']
             q0_ids = value_dict['q0_index']
@@ -734,7 +735,7 @@ class AbstractNetwork(ABC):
                 self._q0 = pd.DataFrame(
                     0, index=self.segment_index, columns=["qu0", "qd0", "h0"], dtype="float32",
                     )
-                
+
                 # get initial time from user inputs
                 self._t0 = restart_parameters.get("start_datetime")
 
@@ -774,21 +775,21 @@ class AbstractNetwork(ABC):
                 raise(RuntimeError("No output binary qlat folder supplied in config"))
             elif not os.path.exists(binary_folder):
                 raise(RuntimeError("Output binary qlat folder supplied in config does not exist"))
-            
+
             #Add tnx for backwards compatability
             qlat_files_list = list(qlat_files) + list(qlat_input_folder.glob('tnx*.csv'))
             #Convert files to binary hourly files, reset nexus input information
             qlat_input_folder, forcing_glob_filter = nex_files_to_binary(qlat_files_list, binary_folder)
             forcing_parameters["qlat_input_folder"] = qlat_input_folder
             forcing_parameters["qlat_file_pattern_filter"] = forcing_glob_filter
-        
+
         if forcing_glob_filter=="nex-*" or forcing_glob_filter == "cat-*":
             all_files = sorted(qlat_input_folder.glob(forcing_glob_filter))
             final_timestamp = pd.read_csv(all_files[0], header=None, index_col=[0]).tail(1).iloc[0,0]
             final_timestamp = datetime.strptime(final_timestamp.strip(), "%Y-%m-%d %H:%M:%S")
-            
+
             all_files = [os.path.basename(f) for f in all_files]
-            
+
             run_sets = [
                 {
                     'qlat_files': all_files,
@@ -796,10 +797,10 @@ class AbstractNetwork(ABC):
                     'final_timestamp': final_timestamp
                 }
             ]
-        
-            
+
+
         # TODO: Throw errors if insufficient input data are available
-        elif run_sets:        
+        elif run_sets:
             #FIXME: Change it for hyfeature
             '''
             # append final_timestamp variable to each set_list
@@ -811,8 +812,8 @@ class AbstractNetwork(ABC):
                         'model_output_valid_time')
                 run_sets[s]['final_timestamp'] = \
                     datetime.strptime(final_timestamp_str, '%Y-%m-%d_%H:%M:%S')
-            '''  
-        elif qlat_input_folder:        
+            '''
+        elif qlat_input_folder:
             # Construct run_set dictionary from user-specified parameters
 
             # get the first and seconded files from an ordered list of all forcing files
@@ -840,7 +841,7 @@ class AbstractNetwork(ABC):
                 df     = read_file(second_file)
                 t2_str = pd.to_datetime(df.columns[1]).strftime("%Y-%m-%d_%H:%M:%S")
                 t2     = datetime.strptime(t2_str,"%Y-%m-%d_%H:%M:%S")
-            
+
             dt_qlat_timedelta = t2 - t1
             dt_qlat = dt_qlat_timedelta.seconds
 
@@ -863,22 +864,22 @@ class AbstractNetwork(ABC):
             # ** Correction ** Because qlat file at time t is constantly applied throughout [t, t+1],
             #               ** n + 1 should be replaced by n
             datetime_list = [self.t0 + dt_qlat_timedelta * (n) for n in
-                            range(nfiles)]        
+                            range(nfiles)]
             datetime_list_str = [datetime.strftime(d, '%Y%m%d%H%M') for d in
                                 datetime_list]
 
             # list of forcing files
             forcing_filename_list = [d_str + forcing_glob_filter[1:] for d_str in
                                     datetime_list_str]
-            
+
             # check that all forcing files exist
             for f in forcing_filename_list:
                 try:
-                    J = pathlib.Path(qlat_input_folder.joinpath(f))     
+                    J = pathlib.Path(qlat_input_folder.joinpath(f))
                     assert J.is_file() == True
                 except AssertionError:
                     raise AssertionError("Aborting simulation because forcing file", J, "cannot be not found.") from None
-                    
+
             # build run sets list
             run_sets = []
             k = 0
@@ -901,19 +902,19 @@ class AbstractNetwork(ABC):
                 else:
                     run_sets[j]['nts'] = int(nts - nts_last)
 
-                final_qlat = qlat_input_folder.joinpath(run_sets[j]['qlat_files'][-1]) 
-                if forcing_glob_filter=="*.CHRTOUT_DOMAIN1":           
+                final_qlat = qlat_input_folder.joinpath(run_sets[j]['qlat_files'][-1])
+                if forcing_glob_filter=="*.CHRTOUT_DOMAIN1":
                     final_timestamp_str = nhd_io.get_param_str(final_qlat,'model_output_valid_time')
                 elif forcing_glob_filter.startswith('*NEXOUT'):
-                    
+
                     final_timestamp_str = datetime.strptime(
                         final_qlat.name.split('NEXOUT', 1)[0],
                         "%Y%m%d%H%M"
                     ).strftime("%Y-%m-%d_%H:%M:%S")
                 else:
                     df = read_file(final_qlat)
-                    final_timestamp_str = pd.to_datetime(df.columns[1]).strftime("%Y-%m-%d_%H:%M:%S")           
-                
+                    final_timestamp_str = pd.to_datetime(df.columns[1]).strftime("%Y-%m-%d_%H:%M:%S")
+
                 run_sets[j]['final_timestamp'] = \
                     datetime.strptime(final_timestamp_str, '%Y-%m-%d_%H:%M:%S')
 
@@ -922,7 +923,7 @@ class AbstractNetwork(ABC):
                 j += 1
 
         return run_sets
-    
+
     def filter_diffusive_nexus_pts(self,):
         # Filter nexus dataframe containing lat/lon of nexus points for just the diffusive
         # domain tailwaters.
@@ -987,19 +988,19 @@ def nex_files_to_binary(nexus_files, binary_folder):
 
     # create a list of tuples to simplify pool.map call
     temp_to_timestep_list = list(enumerate(output_timesteps))
-    
+
     partial_rewrite_to_parquet = partial(rewrite_to_parquet, binary_folder=binary_folder)
     # Rewrite the temp csv files to parquet
     with multiprocessing.Pool() as pool:
         pool.map(partial_rewrite_to_parquet, temp_to_timestep_list)
 
-    
+
     # Clean up the temp files
     os.system(f'rm -rf {csv_binary_folder}')
-    
+
     nexus_input_folder = binary_folder
     forcing_glob_filter = '*NEXOUT.parquet'
-    
+
     return nexus_input_folder, forcing_glob_filter
 
 def get_id_from_filename(file_name):
@@ -1029,7 +1030,7 @@ def read_DFlow_output(ds):
 def read_SCHISM_output(ds, coastal_hy_crosswalk):
 
     schism_nodes = coastal_hy_crosswalk
-                    
+
     base_date = ds.time.attrs.get('base_date').split()
     base_date[3] = str(int(float(base_date[3])))
     base_date[4] = str(int(float(base_date[4])))
@@ -1040,7 +1041,7 @@ def read_SCHISM_output(ds, coastal_hy_crosswalk):
     elevation_df = ds['elevation'].loc[:,list(schism_nodes.keys())].to_dataframe().reset_index().drop('nSCHISM_hgrid_node', axis=1)
 
 
-    # if none of the nodes from crosswalk are present, return empty df 
+    # if none of the nodes from crosswalk are present, return empty df
     if (len(elevation_df)==0):
 
         df=pd.DataFrame()
@@ -1084,14 +1085,14 @@ def read_SCHISM_output(ds, coastal_hy_crosswalk):
 def read_SCHISM_subset(ds, coastal_hy_crosswalk):
 
     schism_nodes = coastal_hy_crosswalk
-                    
+
     ds2 = ds.drop_vars(["SCHISM_hgrid_node_x", "SCHISM_hgrid_node_y"])
 
     # crosswalk from node ID to node index (number)
     nl = ds2.node.values.tolist()
     idl = ds2.nodeID.values.tolist()
     idmap = dict(map(lambda i,j : (i,j) , idl,nl))
-    
+
     # get indices for xarray dataset
     snKeys =  list(schism_nodes.keys())
     idSelect=[]
@@ -1102,7 +1103,7 @@ def read_SCHISM_subset(ds, coastal_hy_crosswalk):
             idHySelect.append(schism_nodes[snKey])
 
 
-    # if none of the nodes from crosswalk are present, return empty df 
+    # if none of the nodes from crosswalk are present, return empty df
     if (len(idSelect)==0):
 
         df=pd.DataFrame()

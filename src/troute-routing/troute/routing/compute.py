@@ -59,7 +59,7 @@ def _prep_da_dataframes(
     a subset of the relevant usgs gage observation time series
     and the relevant last-valid gage observation from any
     prior model execution.
-    
+
     exclude_segments (list): segments to exclude from param_df_sub when searching for gages
                              This catches and excludes offnetwork upstreams segments from being
                              realized as locations for DA substitution. Else, by-subnetwork
@@ -76,12 +76,12 @@ def _prep_da_dataframes(
     time series is as long as the simulation.
 
     """
-    
+
     subnet_segs = param_df_sub_idx
     # segments in the subnetwork ONLY, no offnetwork upstreams included
     if exclude_segments:
         subnet_segs = param_df_sub_idx.difference(set(exclude_segments))
-    
+
     # NOTE: Uncomment to easily test no observations...
     # usgs_df = pd.DataFrame()
     if not usgs_df.empty and not lastobs_df.empty:
@@ -150,7 +150,7 @@ def _prep_reservoir_da_dataframes(reservoir_usgs_df,
                                   great_lakes_param_df,
                                   great_lakes_climatology_df,
                                   waterbody_types_df_sub,
-                                  t0, 
+                                  t0,
                                   from_files,
                                   exclude_segments=None):
     '''
@@ -225,7 +225,7 @@ def _prep_reservoir_da_dataframes(reservoir_usgs_df,
         reservoir_usace_prev_persisted_flow = reservoir_usace_param_df['prev_persisted_outflow'].loc[usace_wbodies_sub].to_numpy()
         reservoir_usace_persistence_update_time = reservoir_usace_param_df['persistence_update_time'].loc[usace_wbodies_sub].to_numpy()
         reservoir_usace_persistence_index = reservoir_usace_param_df['persistence_index'].loc[usace_wbodies_sub].to_numpy()
-    else: 
+    else:
         reservoir_usace_df_sub = pd.DataFrame()
         reservoir_usace_df_time = pd.DataFrame().to_numpy().reshape(0,)
         reservoir_usace_update_time = pd.DataFrame().to_numpy().reshape(0,)
@@ -234,7 +234,7 @@ def _prep_reservoir_da_dataframes(reservoir_usgs_df,
         reservoir_usace_persistence_index = pd.DataFrame().to_numpy().reshape(0,)
         if not waterbody_types_df_sub.empty:
             waterbody_types_df_sub.loc[waterbody_types_df_sub['reservoir_type'] == 3] = 1
-    
+
     # RFC reservoirs
     if not reservoir_rfc_df.empty:
         rfc_wbodies_sub = waterbody_types_df_sub[
@@ -262,7 +262,7 @@ def _prep_reservoir_da_dataframes(reservoir_usgs_df,
         if not from_files:
             if not waterbody_types_df_sub.empty:
                 waterbody_types_df_sub.loc[waterbody_types_df_sub['reservoir_type'] == 4] = 1
-    
+
     # Great Lakes
     if not great_lakes_df.empty:
         gl_wbodies_sub = waterbody_types_df_sub[
@@ -328,46 +328,49 @@ def compute_log_mc(
     waterbody_types_df,
     waterbody_type_specified,
 ):
-    
+
     # TODO: do something with param_df, reservoir_XXX_param_df, or delete them as args
 
     # append parameters and some statistics to log file
     with open(fileName, 'a') as preRunLog:
 
-        preRunLog.write("*******************\n") 
-        preRunLog.write("Compute Parameters:\n") 
-        preRunLog.write("*******************\n") 
-        preRunLog.write("\n")   
+        preRunLog.write("*******************\n")
+        preRunLog.write("Compute Parameters:\n")
+        preRunLog.write("*******************\n")
+        preRunLog.write("\n")
         preRunLog.write("General Compute Parameters:\n")
-        preRunLog.write("\n")  
+        preRunLog.write("\n")
         preRunLog.write("Parallel Compute Method: "+parallel_compute_method+'\n')
         preRunLog.write("Compute Kernel Name: "+compute_func_name+'\n')
         preRunLog.write("Assume Short Timescale: "+str(assume_short_ts)+'\n')
         preRunLog.write("Subnetwork Target Size: "+str(subnetwork_target_size)+'\n')
         preRunLog.write("CPU Pool: "+str(cpu_pool)+'\n')
         #preRunLog.write("\n")
-        #preRunLog.write("Restart Parameters:\n")  
+        #preRunLog.write("Restart Parameters:\n")
         #preRunLog.write("\n")
         preRunLog.write("Start_datetime: "+str(t0)+'\n')
         preRunLog.write("Coldstart: "+str(((q0==0).all()).all())+'\n')
         preRunLog.write("\n")
         preRunLog.write("Forcing Parameters:\n")
-        preRunLog.write("\n")           
+        preRunLog.write("\n")
         preRunLog.write("qts subdivisions: "+str(qts_subdivisions)+'\n')
         preRunLog.write("dt [sec]: "+str(dt)+'\n')
         preRunLog.write("nts: "+str(nts)+'\n')
         preRunLog.write("\n")
         preRunLog.write("Data Assimilation Parameters:\n")
         preRunLog.write("\n")
-    
-        if ('usgs_timeslices_folder' in data_assimilation_parameters.keys()):           
+
+        if ('usgs_timeslices_folder' in data_assimilation_parameters.keys()):
             preRunLog.write("usgs timeslice folder: "+str(data_assimilation_parameters['usgs_timeslices_folder'])+'\n')
-        if ('usace_timeslices_folder' in data_assimilation_parameters.keys()):    
+        if ('usace_timeslices_folder' in data_assimilation_parameters.keys()):
             preRunLog.write("usace timeslice folder: "+str(data_assimilation_parameters['usace_timeslices_folder'])+'\n')
         preRunLog.write("-----\n")
         preRunLog.write("Streamflow DA\n")
-        if ('streamflow_da' in data_assimilation_parameters.keys()):  
+        if ('streamflow_da' in data_assimilation_parameters.keys()):
             outPutStr = "Streamflow nudging: "+str(data_assimilation_parameters['streamflow_da']['streamflow_nudging'])
+            preRunLog.write(outPutStr+'\n')
+            LOG.info(outPutStr)
+            outPutStr = "Streamflow EKF: "+str(data_assimilation_parameters['streamflow_da']['streamflow_ekf'])
             preRunLog.write(outPutStr+'\n')
             LOG.info(outPutStr)
             outPutStr = "Diffusive streamflow nudging: "+str(data_assimilation_parameters['streamflow_da']['diffusive_streamflow_nudging'])
@@ -384,11 +387,11 @@ def compute_log_mc(
             LOG.info(outPutStr)
             preRunLog.write("Reservoir RFC forecasts: "+str(data_assimilation_parameters['reservoir_da']['reservoir_rfc_da']['reservoir_rfc_forecasts'])+'\n')
 
-        preRunLog.write("\n")                   
-        preRunLog.write("****************************\n") 
-        preRunLog.write("Network Topology Parameters:\n") 
-        preRunLog.write("****************************\n") 
-        preRunLog.write("\n")   
+        preRunLog.write("\n")
+        preRunLog.write("****************************\n")
+        preRunLog.write("Network Topology Parameters:\n")
+        preRunLog.write("****************************\n")
+        preRunLog.write("\n")
         preRunLog.write("General network:\n")
         preRunLog.write("Number of downstream connections: "+str(len(connections))+'\n')
         preRunLog.write("Number of upstream connections: "+str(len(rconn))+'\n')
@@ -410,7 +413,7 @@ def compute_log_mc(
         preRunLog.write("Number of USGS gages in waterbodies: "+str(len(reservoir_usgs_df.index))+'\n')
         preRunLog.write("Number of USACE gages in waterbodies: "+str(len(reservoir_usace_df.index))+'\n')
         preRunLog.write("Number of RFC gages in waterbodies: "+str(len(reservoir_rfc_df.index))+'\n')
-        preRunLog.write("\n")        
+        preRunLog.write("\n")
 
     preRunLog.close()
 
@@ -420,9 +423,9 @@ def compute_log_diff(
     diffusive_network_data,
     topobathy_df,
     refactored_diffusive_domain,
-    refactored_reaches,                
+    refactored_reaches,
     coastal_boundary_depth_df,
-    unrefactored_topobathy_df,                
+    unrefactored_topobathy_df,
 ):
 
     # TODO: do something with refactored_diffusive_domain, refactored_reaches, unrefactored_topobathy_df, or delete args
@@ -430,19 +433,19 @@ def compute_log_diff(
     # append parameters and some statistics to log file
     with open(fileName, 'a') as preRunLog:
 
-        preRunLog.write("*******************\n") 
-        preRunLog.write("Diffusive Routing :\n") 
-        preRunLog.write("*******************\n") 
+        preRunLog.write("*******************\n")
+        preRunLog.write("Diffusive Routing :\n")
+        preRunLog.write("*******************\n")
         nTw = len(diffusive_network_data)
-        preRunLog.write("\n")   
+        preRunLog.write("\n")
         outPutStr = "Number of diffusive tailwaters: "+str(nTw)
         preRunLog.write(outPutStr+'\n')
         LOG.info(outPutStr)
-        preRunLog.write("-----\n")  
+        preRunLog.write("-----\n")
 
         twList = [key for key in diffusive_network_data]
 
-        for i_nTw in range(nTw):  
+        for i_nTw in range(nTw):
             outPutStr = "Tailwater number and ID: "+str(i_nTw+1)+"   "+str(twList[i_nTw])
             preRunLog.write(outPutStr+"\n")
             LOG.info(outPutStr)
@@ -460,13 +463,13 @@ def compute_log_diff(
             preRunLog.write("Reverse connections in network: "+str(revConnGraphLength)+"\n")
             paramDf_Columns = [column for column in diffNw['param_df'].columns]
             preRunLog.write("Diffusive parameters:\n")
-    
+
             for paramDf_Col in paramDf_Columns:
                 preRunLog.write(str(paramDf_Col)+"  ")
             preRunLog.write("\n")
             preRunLog.write("-----\n")
 
-        if (not topobathy_df.empty):    
+        if (not topobathy_df.empty):
             topoIDs = topobathy_df.index
             topoTraces = len(topoIDs)
             topoTracesUnique = len(set(topoIDs))
@@ -483,26 +486,26 @@ def compute_log_diff(
             outPutStr = "No topobathy profiles."
             preRunLog.write(outPutStr+"\n")
             LOG.info(outPutStr)
-            preRunLog.write("-----\n")            
+            preRunLog.write("-----\n")
 
-        if (not coastal_boundary_depth_df.empty):    
+        if (not coastal_boundary_depth_df.empty):
             coastalIDs = coastal_boundary_depth_df.index
             coastalTraces = len(coastalIDs)
             preRunLog.write("\n")
             preRunLog.write("-----\n")
             outPutStr = "Number of segments with coastal boundary condition: "+str(coastalTraces)
             preRunLog.write(outPutStr+"\n")
-            LOG.info(outPutStr)            
+            LOG.info(outPutStr)
             preRunLog.write("-----\n")
         else:
             preRunLog.write("\n")
             preRunLog.write("-----\n")
             outPutStr = "No coastal boundary condition."
             preRunLog.write(outPutStr+"\n")
-            LOG.info(outPutStr)  
-            preRunLog.write("-----\n")   
+            LOG.info(outPutStr)
+            preRunLog.write("-----\n")
 
-        preRunLog.write("\n")  
+        preRunLog.write("\n")
 
 
 def compute_nhd_routing_v02(
@@ -549,11 +552,11 @@ def compute_nhd_routing_v02(
     da_decay_coefficient = da_parameter_dict.get("da_decay_coefficient", 0)
     param_df["dt"] = dt
     param_df = param_df.astype("float32")
-    
+
     start_time = time.time()
     compute_func = _compute_func_map[compute_func_name]
     if parallel_compute_method == "by-subnetwork-jit-clustered":
-        
+
         # Create subnetwork objects if they have not already been created
         if not subnetwork_list[0] or not subnetwork_list[1]:
             networks_with_subnetworks_ordered_jit = nhd_network.build_subnetworks(
@@ -567,8 +570,8 @@ def compute_nhd_routing_v02(
                 for order, subnet_sets in ordered_network.items():
                     subnetworks_only_ordered_jit[order].update(subnet_sets)
                     for subn_tw, subnetwork in subnet_sets.items():
-                        subnetworks[subn_tw] = {k: intw[k] for k in subnetwork["reachable_nodes"]}   
-                        
+                        subnetworks[subn_tw] = {k: intw[k] for k in subnetwork["reachable_nodes"]}
+
                         if not waterbodies_df.empty and not usgs_df.empty:
                             path_func = partial(
                                 nhd_network.split_at_gages_waterbodies_and_junctions,
@@ -597,9 +600,9 @@ def compute_nhd_routing_v02(
                         reaches_ordered_bysubntw[order][
                             subn_tw
                         ] = nhd_network.dfs_decomposition(subnetworks[subn_tw], path_func)
-            
 
-            bin_threshold = 1.1  
+
+            bin_threshold = 1.1
             reaches_ordered_bysubntw_clustered = defaultdict(dict)
             for order in subnetworks_only_ordered_jit:
             # storing -capcaity as python only has min_heap and we want max_heap
@@ -611,7 +614,7 @@ def compute_nhd_routing_v02(
                 for twi, (subn_tw, subn_reach_list) in enumerate(
                     reaches_ordered_bysubntw[order].items(), 1
                 ):
-                    segs = list(chain.from_iterable(subn_reach_list))    
+                    segs = list(chain.from_iterable(subn_reach_list))
                     segs_len = len(segs)
                     # try to assign to best-fit cluster (with max remaining capacity)
                     if heap:
@@ -648,7 +651,7 @@ def compute_nhd_routing_v02(
             subnetwork_list = copy.deepcopy(subnetwork_list)
         else:
             subnetworks_only_ordered_jit, reaches_ordered_bysubntw_clustered = copy.deepcopy(subnetwork_list)
-        
+
         if 1 == 1:
             LOG.info("JIT Preprocessing time %s seconds." % (time.time() - start_time))
             LOG.info("starting Parallel JIT calculation")
@@ -667,9 +670,10 @@ def compute_nhd_routing_v02(
                     segs = clustered_subns['segs']
                     offnetwork_upstreams = set(clustered_subns['connecting_nodes'])
                     segs.extend(offnetwork_upstreams)
-                    
+
                     common_segs = list(param_df.index.intersection(segs))
                     wbodies_segs = set(segs).symmetric_difference(common_segs)
+
                     #Declare empty dataframe
                     waterbody_types_df_sub = pd.DataFrame()
                     if not waterbodies_df.empty:
@@ -690,7 +694,7 @@ def compute_nhd_routing_v02(
                                 "h0",
                             ],
                         ]
-                        
+
                         #If reservoir types other than Level Pool are active
                         if not waterbody_types_df.empty:
                             waterbody_types_df_sub = waterbody_types_df.loc[
@@ -708,11 +712,11 @@ def compute_nhd_routing_v02(
                         common_segs,
                         ["dt", "bw", "tw", "twcc", "dx", "n", "ncc", "cs", "s0", "alt"],
                     ].sort_index()
-                    
+
                     param_df_sub_super = param_df_sub.reindex(
                         param_df_sub.index.tolist() + lake_segs
                     ).sort_index()
-                    
+
                     if order < max(subnetworks_only_ordered_jit.keys()):
                         for us_subn_tw in offnetwork_upstreams:
                             subn_tw_sortposition = param_df_sub_super.index.get_loc(
@@ -721,7 +725,7 @@ def compute_nhd_routing_v02(
                             flowveldepth_interorder[us_subn_tw][
                                 "position_index"
                             ] = subn_tw_sortposition
-   
+
                     subn_reach_list = clustered_subns["subn_reach_list"]
                     upstreams = clustered_subns["upstreams"]
 
@@ -729,7 +733,7 @@ def compute_nhd_routing_v02(
 
                     qlat_sub = qlats.loc[param_df_sub.index]
                     q0_sub = q0.loc[param_df_sub.index]
-                                        
+
                     param_df_sub = param_df_sub.reindex(
                         param_df_sub.index.tolist() + lake_segs
                     ).sort_index()
@@ -741,49 +745,49 @@ def compute_nhd_routing_v02(
                     q0_sub = q0_sub.reindex(param_df_sub.index)
 
                     # prepare reservoir DA data
-                    (reservoir_usgs_df_sub, 
+                    (reservoir_usgs_df_sub,
                      reservoir_usgs_df_time,
                      reservoir_usgs_update_time,
                      reservoir_usgs_prev_persisted_flow,
                      reservoir_usgs_persistence_update_time,
                      reservoir_usgs_persistence_index,
-                     reservoir_usace_df_sub, 
+                     reservoir_usace_df_sub,
                      reservoir_usace_df_time,
                      reservoir_usace_update_time,
                      reservoir_usace_prev_persisted_flow,
                      reservoir_usace_persistence_update_time,
                      reservoir_usace_persistence_index,
-                     reservoir_rfc_df_sub, 
-                     reservoir_rfc_totalCounts, 
-                     reservoir_rfc_file, 
-                     reservoir_rfc_use_forecast, 
-                     reservoir_rfc_timeseries_idx, 
-                     reservoir_rfc_update_time, 
-                     reservoir_rfc_da_timestep, 
+                     reservoir_rfc_df_sub,
+                     reservoir_rfc_totalCounts,
+                     reservoir_rfc_file,
+                     reservoir_rfc_use_forecast,
+                     reservoir_rfc_timeseries_idx,
+                     reservoir_rfc_update_time,
+                     reservoir_rfc_da_timestep,
                      reservoir_rfc_persist_days,
-                     gl_df_sub, 
-                     gl_parm_lake_id_sub, 
-                     gl_param_flows_sub, 
-                     gl_param_time_sub, 
+                     gl_df_sub,
+                     gl_parm_lake_id_sub,
+                     gl_param_flows_sub,
+                     gl_param_time_sub,
                      gl_param_update_time_sub,
                      gl_climatology_df_sub,
                      waterbody_types_df_sub,
                      ) = _prep_reservoir_da_dataframes(
                         reservoir_usgs_df,
                         reservoir_usgs_param_df,
-                        reservoir_usace_df, 
+                        reservoir_usace_df,
                         reservoir_usace_param_df,
                         reservoir_rfc_df,
                         reservoir_rfc_param_df,
                         great_lakes_df,
                         great_lakes_param_df,
                         great_lakes_climatology_df,
-                        waterbody_types_df_sub, 
+                        waterbody_types_df_sub,
                         t0,
                         from_files,
                         offnetwork_upstreams
                     )
-                    
+
                     # results_subn[order].append(
                     #     compute_func(
                     jobs.append(
@@ -798,7 +802,7 @@ def compute_nhd_routing_v02(
                             param_df_sub.values,
                             q0_sub.values.astype("float32"),
                             qlat_sub.values.astype("float32"),
-                            lake_segs, 
+                            lake_segs,
                             waterbodies_df_sub.values,
                             data_assimilation_parameters,
                             waterbody_types_df_sub.values.astype("int32"),
@@ -865,7 +869,7 @@ def compute_nhd_routing_v02(
                         )
                     )
                 results_subn[order] = parallel(jobs)
-   
+
                 if order > 0:  # This is not needed for the last rank of subnetworks
                     flowveldepth_interorder = {}
                     for ci, (cluster, clustered_subns) in enumerate(
@@ -891,7 +895,7 @@ def compute_nhd_routing_v02(
             results.extend(results_subn[order])
         if 1 == 1:
             LOG.info("PARALLEL TIME %s seconds." % (time.time() - start_para_time))
-        
+
     elif parallel_compute_method == "by-subnetwork-jit":
         # Create subnetwork objects if they have not already been created
         if not subnetwork_list[0] or not subnetwork_list[1] or not subnetwork_list[2]:
@@ -945,7 +949,7 @@ def compute_nhd_routing_v02(
 
         else:
             subnetworks_only_ordered_jit, reaches_ordered_bysubntw, subnetworks = subnetwork_list
-            
+
         if 1 == 1:
             LOG.info("JIT Preprocessing time %s seconds." % (time.time() - start_time))
             LOG.info("starting Parallel JIT calculation")
@@ -965,12 +969,13 @@ def compute_nhd_routing_v02(
                     segs = list(chain.from_iterable(subn_reach_list))
                     offnetwork_upstreams = set(subnetworks_only_ordered_jit[order][subn_tw]["connecting_nodes"])
                     segs.extend(offnetwork_upstreams)
+
                     common_segs = list(param_df.index.intersection(segs))
                     wbodies_segs = set(segs).symmetric_difference(common_segs)
-                    
+
                     #Declare empty dataframe
                     waterbody_types_df_sub = pd.DataFrame()
-                
+
                     if not waterbodies_df.empty:
                         lake_segs = list(waterbodies_df.index.intersection(segs))
                         waterbodies_df_sub = waterbodies_df.loc[
@@ -989,7 +994,7 @@ def compute_nhd_routing_v02(
                                 "h0",
                             ],
                         ]
-                        
+
                         #If reservoir types other than Level Pool are active
                         if not waterbody_types_df.empty:
                             waterbody_types_df_sub = waterbody_types_df.loc[
@@ -1002,16 +1007,16 @@ def compute_nhd_routing_v02(
                     else:
                         lake_segs = []
                         waterbodies_df_sub = pd.DataFrame()
-                    
+
                     param_df_sub = param_df.loc[
                         common_segs,
                         ["dt", "bw", "tw", "twcc", "dx", "n", "ncc", "cs", "s0", "alt"],
                     ].sort_index()
-                    
+
                     param_df_sub_super = param_df_sub.reindex(
                         param_df_sub.index.tolist() + lake_segs
                     ).sort_index()
-                    
+
                     if order < max(subnetworks_only_ordered_jit.keys()):
                         for us_subn_tw in offnetwork_upstreams:
                             subn_tw_sortposition = param_df_sub_super.index.get_loc(
@@ -1035,46 +1040,46 @@ def compute_nhd_routing_v02(
 
                     qlat_sub = qlat_sub.reindex(param_df_sub.index)
                     q0_sub = q0_sub.reindex(param_df_sub.index)
-                    
+
                     # prepare reservoir DA data
-                    (reservoir_usgs_df_sub, 
+                    (reservoir_usgs_df_sub,
                      reservoir_usgs_df_time,
                      reservoir_usgs_update_time,
                      reservoir_usgs_prev_persisted_flow,
                      reservoir_usgs_persistence_update_time,
                      reservoir_usgs_persistence_index,
-                     reservoir_usace_df_sub, 
+                     reservoir_usace_df_sub,
                      reservoir_usace_df_time,
                      reservoir_usace_update_time,
                      reservoir_usace_prev_persisted_flow,
                      reservoir_usace_persistence_update_time,
                      reservoir_usace_persistence_index,
-                     reservoir_rfc_df_sub, 
-                     reservoir_rfc_totalCounts, 
-                     reservoir_rfc_file, 
-                     reservoir_rfc_use_forecast, 
-                     reservoir_rfc_timeseries_idx, 
-                     reservoir_rfc_update_time, 
-                     reservoir_rfc_da_timestep, 
+                     reservoir_rfc_df_sub,
+                     reservoir_rfc_totalCounts,
+                     reservoir_rfc_file,
+                     reservoir_rfc_use_forecast,
+                     reservoir_rfc_timeseries_idx,
+                     reservoir_rfc_update_time,
+                     reservoir_rfc_da_timestep,
                      reservoir_rfc_persist_days,
-                     gl_df_sub, 
-                     gl_parm_lake_id_sub, 
-                     gl_param_flows_sub, 
-                     gl_param_time_sub, 
+                     gl_df_sub,
+                     gl_parm_lake_id_sub,
+                     gl_param_flows_sub,
+                     gl_param_time_sub,
                      gl_param_update_time_sub,
                      gl_climatology_df_sub,
                      waterbody_types_df_sub,
                      ) = _prep_reservoir_da_dataframes(
                         reservoir_usgs_df,
                         reservoir_usgs_param_df,
-                        reservoir_usace_df, 
+                        reservoir_usace_df,
                         reservoir_usace_param_df,
                         reservoir_rfc_df,
                         reservoir_rfc_param_df,
                         great_lakes_df,
                         great_lakes_param_df,
                         great_lakes_climatology_df,
-                        waterbody_types_df_sub, 
+                        waterbody_types_df_sub,
                         t0,
                         from_files,
                         offnetwork_upstreams
@@ -1257,30 +1262,30 @@ def compute_nhd_routing_v02(
 
                 qlat_sub = qlat_sub.reindex(param_df_sub.index)
                 q0_sub = q0_sub.reindex(param_df_sub.index)
-                
+
                 # prepare reservoir DA data
-                (reservoir_usgs_df_sub, 
+                (reservoir_usgs_df_sub,
                  reservoir_usgs_df_time,
                  reservoir_usgs_update_time,
                  reservoir_usgs_prev_persisted_flow,
                  reservoir_usgs_persistence_update_time,
                  reservoir_usgs_persistence_index,
-                 reservoir_usace_df_sub, 
+                 reservoir_usace_df_sub,
                  reservoir_usace_df_time,
                  reservoir_usace_update_time,
                  reservoir_usace_prev_persisted_flow,
                  reservoir_usace_persistence_update_time,
                  reservoir_usace_persistence_index,
-                 reservoir_rfc_df_sub, 
-                 reservoir_rfc_totalCounts, 
-                 reservoir_rfc_file, 
-                 reservoir_rfc_use_forecast, 
-                 reservoir_rfc_timeseries_idx, 
-                 reservoir_rfc_update_time, 
-                 reservoir_rfc_da_timestep, 
+                 reservoir_rfc_df_sub,
+                 reservoir_rfc_totalCounts,
+                 reservoir_rfc_file,
+                 reservoir_rfc_use_forecast,
+                 reservoir_rfc_timeseries_idx,
+                 reservoir_rfc_update_time,
+                 reservoir_rfc_da_timestep,
                  reservoir_rfc_persist_days,
-                 gl_df_sub, 
-                 gl_parm_lake_id_sub, 
+                 gl_df_sub,
+                 gl_parm_lake_id_sub,
                  gl_param_flows_sub,
                  gl_param_time_sub,
                  gl_param_update_time_sub,
@@ -1289,14 +1294,14 @@ def compute_nhd_routing_v02(
                 ) = _prep_reservoir_da_dataframes(
                     reservoir_usgs_df,
                     reservoir_usgs_param_df,
-                    reservoir_usace_df, 
+                    reservoir_usace_df,
                     reservoir_usace_param_df,
                     reservoir_rfc_df,
                     reservoir_rfc_param_df,
                     great_lakes_df,
                     great_lakes_param_df,
                     great_lakes_climatology_df,
-                    waterbody_types_df_sub, 
+                    waterbody_types_df_sub,
                     t0,
                     from_files,
                     set()
@@ -1443,30 +1448,30 @@ def compute_nhd_routing_v02(
 
             qlat_sub = qlat_sub.reindex(param_df_sub.index)
             q0_sub = q0_sub.reindex(param_df_sub.index)
-            
+
             # prepare reservoir DA data
-            (reservoir_usgs_df_sub, 
+            (reservoir_usgs_df_sub,
              reservoir_usgs_df_time,
              reservoir_usgs_update_time,
              reservoir_usgs_prev_persisted_flow,
              reservoir_usgs_persistence_update_time,
              reservoir_usgs_persistence_index,
-             reservoir_usace_df_sub, 
+             reservoir_usace_df_sub,
              reservoir_usace_df_time,
              reservoir_usace_update_time,
              reservoir_usace_prev_persisted_flow,
              reservoir_usace_persistence_update_time,
              reservoir_usace_persistence_index,
-             reservoir_rfc_df_sub, 
-             reservoir_rfc_totalCounts, 
-             reservoir_rfc_file, 
-             reservoir_rfc_use_forecast, 
-             reservoir_rfc_timeseries_idx, 
-             reservoir_rfc_update_time, 
-             reservoir_rfc_da_timestep, 
+             reservoir_rfc_df_sub,
+             reservoir_rfc_totalCounts,
+             reservoir_rfc_file,
+             reservoir_rfc_use_forecast,
+             reservoir_rfc_timeseries_idx,
+             reservoir_rfc_update_time,
+             reservoir_rfc_da_timestep,
              reservoir_rfc_persist_days,
              gl_df_sub,
-             gl_parm_lake_id_sub, 
+             gl_parm_lake_id_sub,
              gl_param_flows_sub,
              gl_param_time_sub,
              gl_param_update_time_sub,
@@ -1475,18 +1480,18 @@ def compute_nhd_routing_v02(
              ) = _prep_reservoir_da_dataframes(
                 reservoir_usgs_df,
                 reservoir_usgs_param_df,
-                reservoir_usace_df, 
+                reservoir_usace_df,
                 reservoir_usace_param_df,
                 reservoir_rfc_df,
                 reservoir_rfc_param_df,
                 great_lakes_df,
                 great_lakes_param_df,
                 great_lakes_climatology_df,
-                waterbody_types_df_sub, 
+                waterbody_types_df_sub,
                 t0,
                 from_files,
                 )
-            
+
             results.append(
                 compute_func(
                     nts,
@@ -1624,7 +1629,7 @@ def compute_nhd_routing_v02(
             param_df_sub = param_df_sub.reindex(
                 param_df_sub.index.tolist() + lake_segs
             ).sort_index()
-            
+
             for us_subn_tw in offnetwork_upstreams:
                 subn_tw_sortposition = param_df_sub.index.get_loc(
                     us_subn_tw
@@ -1638,15 +1643,15 @@ def compute_nhd_routing_v02(
 
             qlat_sub = qlat_sub.reindex(np.setdiff1d(param_df_sub.index, offnetwork_upstreams))
             q0_sub = q0_sub.reindex(param_df_sub.index)
-            
+
             # prepare reservoir DA data
-            (reservoir_usgs_df_sub, 
+            (reservoir_usgs_df_sub,
              reservoir_usgs_df_time,
              reservoir_usgs_update_time,
              reservoir_usgs_prev_persisted_flow,
              reservoir_usgs_persistence_update_time,
              reservoir_usgs_persistence_index,
-             reservoir_usace_df_sub, 
+             reservoir_usace_df_sub,
              reservoir_usace_df_time,
              reservoir_usace_update_time,
              reservoir_usace_prev_persisted_flow,
@@ -1656,13 +1661,13 @@ def compute_nhd_routing_v02(
              ) = _prep_reservoir_da_dataframes(
                 reservoir_usgs_df,
                 reservoir_usgs_param_df,
-                reservoir_usace_df, 
+                reservoir_usace_df,
                 reservoir_usace_param_df,
-                waterbody_types_df_sub, 
+                waterbody_types_df_sub,
                 t0,
                 from_files,
             )
-            
+
             results.append(
                 compute_func(
                     nts,
@@ -1734,7 +1739,7 @@ def compute_diffusive_routing(
     topobathy,
     refactored_diffusive_domain,
     refactored_reaches,
-    coastal_boundary_depth_df, 
+    coastal_boundary_depth_df,
     unrefactored_topobathy,
     ):
 
@@ -1752,25 +1757,25 @@ def compute_diffusive_routing(
                 else:
                     if trib_segs is None:
                         trib_segs = i[0][x]
-                        trib_flow = i[1][x, ::3]                        
+                        trib_flow = i[1][x, ::3]
                     else:
                         trib_segs = np.append(trib_segs, i[0][x])
-                        trib_flow = np.append(trib_flow, i[1][x, ::3], axis = 0)  
+                        trib_flow = np.append(trib_flow, i[1][x, ::3], axis = 0)
 
-        # create DataFrame of junction inflow data            
+        # create DataFrame of junction inflow data
         junction_inflows = pd.DataFrame(data = trib_flow, index = trib_segs)
 
         if not topobathy.empty:
-            # create topobathy data for diffusive mainstem segments related to this given tw segment        
+            # create topobathy data for diffusive mainstem segments related to this given tw segment
             if refactored_diffusive_domain:
-                topobathy_bytw               = topobathy.loc[refactored_diffusive_domain[tw]['rlinks']] 
-                # TODO: missing topobathy data in one of diffuisve domains, so inactivate the next line for now. 
+                topobathy_bytw               = topobathy.loc[refactored_diffusive_domain[tw]['rlinks']]
+                # TODO: missing topobathy data in one of diffuisve domains, so inactivate the next line for now.
                 #unrefactored_topobathy_bytw  = unrefactored_topobathy.loc[diffusive_network_data[tw]['mainstem_segs']]
                 unrefactored_topobathy_bytw = pd.DataFrame()
             else:
-                topobathy_bytw               = topobathy.loc[diffusive_network_data[tw]['mainstem_segs']] 
+                topobathy_bytw               = topobathy.loc[diffusive_network_data[tw]['mainstem_segs']]
                 unrefactored_topobathy_bytw = pd.DataFrame()
-            
+
         else:
             topobathy_bytw = pd.DataFrame()
             unrefactored_topobathy_bytw = pd.DataFrame()
@@ -1790,7 +1795,7 @@ def compute_diffusive_routing(
         else:
             refactored_diffusive_domain_bytw = None
             refactored_reaches_byrftw        = None
-  
+
         # coastal boundary depth input data at TW
         if tw in coastal_boundary_depth_df.index:
             coastal_boundary_depth_bytw_df = coastal_boundary_depth_df.loc[tw].to_frame().T
@@ -1800,7 +1805,7 @@ def compute_diffusive_routing(
         # temporary: column names of qlats from HYfeature are currently timestamps. To be consistent with qlats from NHD
         # the column names need to be changed to intergers from zero incrementing by 1
         diffusive_qlats = qlats.copy()
-        diffusive_qlats.columns = range(diffusive_qlats.shape[1])  
+        diffusive_qlats.columns = range(diffusive_qlats.shape[1])
 
         # build diffusive inputs
         diffusive_inputs = diff_utils.diffusive_input_data_v02(
@@ -1823,7 +1828,7 @@ def compute_diffusive_routing(
             topobathy_bytw,
             diffusive_usgs_df,
             refactored_diffusive_domain_bytw,
-            refactored_reaches_byrftw, 
+            refactored_reaches_byrftw,
             coastal_boundary_depth_bytw_df,
             unrefactored_topobathy_bytw,
         )
@@ -1833,15 +1838,15 @@ def compute_diffusive_routing(
 
         # unpack results
         rch_list, dat_all = diff_utils.unpack_output(
-            diffusive_inputs['pynw'], 
-            diffusive_inputs['ordered_reaches'], 
-            out_q, 
+            diffusive_inputs['pynw'],
+            diffusive_inputs['ordered_reaches'],
+            out_q,
             out_depth, #out_elv
         )
-        
+
         # mask segments for which we already have MC solution
         x = np.in1d(rch_list, diffusive_network_data[tw]['tributary_segments'])
-        
+
         results_diffusive.append(
             (
                 rch_list[~x], dat_all[~x,3:], 0,
