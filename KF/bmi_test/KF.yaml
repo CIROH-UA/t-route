@@ -1,8 +1,0 @@
-forcing_file_path: "forcing.csv"
-streamflow_file_path: "streamflow.csv"
-measurement_file_path: "measurement.csv"
-network_file_path: "tx_ngen_model_partitioned.json"
-usgs_to_comid_file_path: "tx_usgs_to_wbid.csv"
-start_date: "2022-08-22T00:00:00+00:00"
-end_date: "2022-08-23T23:00:00+00:00"
-with_troute: "True"

@@ -1,0 +1,77 @@
+---
+#--------------------------------------------------------------------------------
+log_parameters:
+    #----------
+    showtiming: True
+    log_level: INFO
+#--------------------------------------------------------------------------------
+network_topology_parameters:
+    #----------
+    supernetwork_parameters:
+        #----------
+        geo_file_path: ./tx_subset.gpkg
+        columns:
+            key: "id"
+            downstream: "toid"
+            dx: "Length_m"
+            n: "n"
+            ncc: "nCC"
+            s0: "So"
+            bw: "BtmWdth"
+            waterbody: "WaterbodyID"
+            gages: "gage"
+            tw: "TopWdth"
+            twcc: "TopWdthCC"
+            musk: "MusK"
+            musx: "MusX"
+            cs: "ChSlp"
+            alt: "alt"
+    waterbody_parameters:
+        #----------
+        break_network_at_waterbodies: False
+
+#--------------------------------------------------------------------------------
+compute_parameters:
+    #----------
+    parallel_compute_method: by-subnetwork-jit-clustered # serial
+    compute_kernel: V02-structured
+    assume_short_ts: True
+    subnetwork_target_size: 50
+    cpu_pool: 8
+    restart_parameters:
+        #----------
+        start_datetime: 2022-08-22 00:00:00
+    forcing_parameters:
+        #----------
+        qts_subdivisions: 12
+        dt: 300 # [sec] 300 == 5 minutes
+        qlat_input_folder: ./lateral_inflow/
+        qlat_file_pattern_filter: "nex-*"
+        nts: 576.0 #288 for 1day
+        max_loop_size: 576.0 # [number of timesteps]
+        # max_loop_size == nts so that output is single file
+    data_assimilation_parameters:
+        streamflow_da:
+            #----------
+            streamflow_nudging: False
+            diffusive_streamflow_nudging: False
+        reservoir_da:
+            #----------
+            reservoir_persistence_da:
+                #----------
+                reservoir_persistence_usgs: False
+                reservoir_persistence_usace: False
+            reservoir_rfc_da:
+                #----------
+                reservoir_rfc_forecasts: False
+                reservoir_rfc_forecasts_time_series_path: rfc_timeseries/
+                reservoir_rfc_forecasts_lookback_hours: 28
+                reservoir_rfc_forecasts_offset_hours: 28
+#--------------------------------------------------------------------------------
+output_parameters:
+    #----------
+    stream_output:
+        stream_output_directory: ./outputs
+        stream_output_time: -1 # -1 adds all outputs to a single file
+        stream_output_type: ".nc" #please select only between netcdf '.nc' or '.csv' or '.pkl'
+        stream_output_internal_frequency: 60 #[min] it should be order of 5 minutes. For instance if you want to output every hour put 60
