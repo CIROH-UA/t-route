@@ -51,6 +51,8 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 .env
+.venv
+*_cache
 .python-version
 .ipynb_checkpoints/
 

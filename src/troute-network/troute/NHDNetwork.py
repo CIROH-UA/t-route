@@ -239,9 +239,13 @@ class NHDNetwork(AbstractNetwork):
                 'reservoir_da', 
                 {}
             )
-        
+        # Each sub-section of reservoir_da is individually optional. Resolve the
+        # missing ones to empty dicts so that they read as falsy below instead of
+        # raising KeyError.
+        persistence_params = reservoir_da.get('reservoir_persistence_da', {})
+
         # check if RFC-type reservoirs are set to true
-        rfc_params = reservoir_da['reservoir_rfc_da']
+        rfc_params = reservoir_da.get('reservoir_rfc_da', {})
 
         # if waterbodies are being simulated, adjust the connections graph so that 
         # waterbodies are collapsed to single nodes. Also, build a mapping between 
@@ -280,11 +284,11 @@ class NHDNetwork(AbstractNetwork):
 
             
             if reservoir_da:
-                usgs_hybrid  = reservoir_da['reservoir_persistence_da'].get(
+                usgs_hybrid  = persistence_params.get(
                     'reservoir_persistence_usgs', 
                     False
                 )
-                usace_hybrid = reservoir_da['reservoir_persistence_da'].get(
+                usace_hybrid = persistence_params.get(
                     'reservoir_persistence_usace', 
                     False
                 )
@@ -333,8 +337,8 @@ class NHDNetwork(AbstractNetwork):
         else:
             if reservoir_da:
                 if any([
-                    reservoir_da['reservoir_persistence_da'].get('reservoir_persistence_usgs', False),
-                    reservoir_da['reservoir_persistence_da'].get('reservoir_persistence_usace', False),
+                    persistence_params.get('reservoir_persistence_usgs', False),
+                    persistence_params.get('reservoir_persistence_usace', False),
                     rfc_params.get('reservoir_rfc_forecasts', False)
                 ]):
                     raise ValueError(

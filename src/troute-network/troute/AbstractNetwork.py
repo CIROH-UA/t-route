@@ -689,7 +689,11 @@ class AbstractNetwork(ABC):
                 )
             
             elif restart_parameters.get("wrf_hydro_channel_restart_file", None):
-                self._q0 = nhd_io.get_channel_restart_from_wrf_hydro(
+                if restart_parameters.get("wrf_hydro_channel_restart_input_type", None) == "reorder":
+                    channel_restart_reader = nhd_io.get_channel_restart_from_wrf_hydro_reorder
+                else:
+                    channel_restart_reader = nhd_io.get_channel_restart_from_wrf_hydro
+                self._q0 = channel_restart_reader(
                     restart_parameters["wrf_hydro_channel_restart_file"],
                     restart_parameters["wrf_hydro_channel_ID_crosswalk_file"],
                     restart_parameters.get("wrf_hydro_channel_ID_crosswalk_file_field_name", 'link'),

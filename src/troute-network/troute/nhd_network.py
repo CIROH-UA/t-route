@@ -721,7 +721,8 @@ def build_subnetworks(connections, rconn, min_size, sources=None):
             # Build dict object containing reachable nodes within max_depth from each source in new_sources
             rv = {}
             for h in new_sources:
-
+                #also include the head waters of that subnetwork in the rv dictionary
+                rv[h] = {}
                 reachable = set()
                 Q = deque([(h, 0)])
                 stop_depth = 1000000
@@ -741,15 +742,15 @@ def build_subnetworks(connections, rconn, min_size, sources=None):
 
                     if us_depth <= stop_depth:
                         Q.extend(zip(rx, [us_depth] * len(rx)))
-
-                # reachable: a list of reachable segments within max_depth from source node h
-                rv[h] = reachable
+                
+                rv[h]["reachable_nodes"] = reachable
 
             # find headwater segments in reachable groups, these will become the next set of sources
             # new_sources_list = []
             new_sources = set()
-            for tw, seg in rv.items():
+            for tw, _ in rv.items():
                 # identify downstream connections for segments in this subnetwork
+                seg = rv[tw]["reachable_nodes"]
                 c = {key: connections[key] for key in seg}
                 # find apparent headwaters, will include new sources and actual headwaters
                 sub_hws = headwaters(c)
@@ -758,8 +759,9 @@ def build_subnetworks(connections, rconn, min_size, sources=None):
                 # append list of new sources
                 new_sources.update(srcs)
                 # remove new sources from the subnetwork list
-                rv[tw].difference_update(srcs)
-
+                rv[tw]["reachable_nodes"].difference_update(srcs)
+                rv[tw]["connecting_nodes"] = srcs
+            
             # append master dictionary
             subnetworks[group_order] = rv
 

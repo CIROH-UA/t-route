@@ -127,6 +127,15 @@ class RestartParameters(BaseModel):
     """
     Field name of depth in restart file.
     """
+    wrf_hydro_channel_restart_input_type: Optional[str] = None
+    """
+    Selects which reader is used for the WRF-Hydro channel restart file.
+    If unset (or any value other than 'reorder'), the default reader is used,
+    which assumes the restart file and crosswalk file share the same row order.
+    If set to 'reorder', an alternate reader is used that reorders restart
+    values using the segment IDs stored inside the restart file itself, so the
+    crosswalk file row order does not matter.
+    """
 
     wrf_hydro_waterbody_restart_file: Optional[FilePath] = None
     """
@@ -268,6 +277,12 @@ class StreamflowDA(BaseModel):
     """
     If True, enable streamflow data assimilation in diffusive module. 
     NOTE: Not yet implemented, leave as False. (June 25, 2024)
+    """
+    da_from_feather: Optional[FilePath] = None
+    """
+    Path to a feather file containing streamflow data to use for DA.
+    This bypasses all the usual DA file reading logic via usgs_timeslices_folder and uses the feather file directly.
+    Setting this will turn on streamflow nudging regardless of it's value in the config.
     """
 
 
