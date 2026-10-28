@@ -32,7 +32,7 @@ class BmiTroute:
     """Basic Model Interface adapter for t-route NWM routing."""
 
     _INPUT_VAR_NAMES = ("initial_discharge",)
-    _OUTPUT_VAR_NAMES = ("reach_list", "discharge", "k", "x")
+    _OUTPUT_VAR_NAMES = ("reach_list", "discharge", "k", "x", "discharge_obs")
 
     def initialize(self, config_file=""):
         """
@@ -130,6 +130,7 @@ class BmiTroute:
         streamflow_da = self.data_assimilation_parameters.get('streamflow_da', False)
         if streamflow_da:
             nudging = streamflow_da.get('streamflow_nudging', False)
+            ekf = streamflow_da.get('streamflow_ekf', False)
 
         #force nts to be 1, because we only route one time step at a time in this function
         #makes it easier for the chunking logic of the qlateral dataset.
@@ -138,10 +139,11 @@ class BmiTroute:
         #preparing the right qlateral for the model
         qlateral = self.network._qlateral.iloc[:, [int(self._current_time/3600)]]
         if nudging:
-            usgs_df = self.data_assimilation.usgs_df.iloc[:, int(self._current_time/300):]
-        else:
-            usgs_df = pd.DataFrame()
-
+            usgs_df_for_nudge = self.data_assimilation.usgs_df.iloc[:, int(self._current_time/300):]
+            self.discharge_obs = None
+        elif ekf:
+            usgs_df_for_nudge = pd.DataFrame()
+            self.discharge_obs = self.data_assimilation.usgs_df.iloc[:, int(self._current_time/300):]
 
         #route the model with the network information and correct lateral flows
         run_results = nwm_route(
@@ -161,7 +163,7 @@ class BmiTroute:
             self.network.dataframe,
             self.network.q0,
             qlateral,
-            usgs_df,
+            usgs_df_for_nudge,
             self.data_assimilation.lastobs_df,
             self.data_assimilation.reservoir_usgs_df,
             self.data_assimilation.reservoir_usgs_param_df,
@@ -436,6 +438,9 @@ class BmiTroute:
         self.output_var_store["k"] = k[self._sorted_indices]
         self.output_var_store["x"] = x[self._sorted_indices]
         self.output_var_store["reach_list"] = reach_list[self._sorted_indices]
+
+        # expose usgs values
+        self.output_var_store["discharge_obs"] = self.discharge_obs
 
     def _initialize_network(self):
         if self.supernetwork_parameters["network_type"] == "HYFeaturesNetwork":
