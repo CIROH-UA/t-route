@@ -127,6 +127,9 @@ class BmiTroute:
     def route_one_time_step(self):
         t0 = self.network.t0
         dt = self.forcing_parameters.get("dt")
+        streamflow_da = self.data_assimilation_parameters.get('streamflow_da', False)
+        if streamflow_da:
+            nudging = streamflow_da.get('streamflow_nudging', False)
 
         #force nts to be 1, because we only route one time step at a time in this function
         #makes it easier for the chunking logic of the qlateral dataset.
@@ -134,7 +137,10 @@ class BmiTroute:
 
         #preparing the right qlateral for the model
         qlateral = self.network._qlateral.iloc[:, [int(self._current_time/3600)]]
-        usgs_df = self.data_assimilation.usgs_df.iloc[:, int(self._current_time/300):]
+        if nudging:
+            usgs_df = self.data_assimilation.usgs_df.iloc[:, int(self._current_time/300):]
+        else:
+            usgs_df = pd.DataFrame()
 
 
         #route the model with the network information and correct lateral flows

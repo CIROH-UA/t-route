@@ -814,8 +814,8 @@ def _run_everything_v02(
 
     # STEP 6
     #TODO factory create the DA object from params to pick the right one
-    #i.e. EmptyDA, NudgingDA, NewAndImprovedDA...
-    data_assimilation = NudgingDA(data_assimilation_parameters, run_parameters)
+    #i.e. EmptyDA, StreamflowDA, NewAndImprovedDA...
+    data_assimilation = StreamflowDA(data_assimilation_parameters, run_parameters)
 
     ################### Main Execution Loop across ordered networks
     if showtiming:
