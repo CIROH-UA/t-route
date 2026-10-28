@@ -73,7 +73,7 @@ def build_da_sets(da_params, run_sets, t0):
         nudging = streamflow_da.get('streamflow_nudging', False)
         ekf = streamflow_da.get('streamflow_ekf', False)
 
-    if not usgs_da and not usace_da and not GreatLakes_da and not nudging and not ekf:
+    if not usgs_da and not usace_da and not GreatLakes_da and not (nudging or ekf):
         # if all DA capabilities are OFF, return empty dictionary
         da_sets = [{} for _ in run_sets]
 
@@ -84,7 +84,6 @@ def build_da_sets(da_params, run_sets, t0):
 
     # if user-input timeslice folders are present, build TimeSlice sets
     else:
-
         # create Path objects for each TimeSlice directory
         if usgs_timeslices_folder:
             usgs_timeslices_folder = pathlib.Path(usgs_timeslices_folder)
@@ -120,7 +119,7 @@ def build_da_sets(da_params, run_sets, t0):
             )
 
             # identify available USGS TimeSlices in run set i
-            if (usgs_timeslices_folder and nudging) or (usgs_timeslices_folder and usgs_da):
+            if (usgs_timeslices_folder and nudging) or (usgs_timeslices_folder and usgs_da) or (usgs_timeslices_folder and ekf):
                 filenames_usgs = (timestamps.strftime('%Y-%m-%d_%H:%M:%S')
                             + '.15min.usgsTimeSlice.ncdf').to_list()
 
