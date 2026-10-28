@@ -975,7 +975,7 @@ class RFCDA(AbstractDA):
 # Combination of base DA classes. This is the DA object that is called
 # by t-route.
 # --------------------------------------------------------------------
-class DataAssimilation(StreamflowgDA, PersistenceDA, RFCDA):
+class DataAssimilation(StreamflowDA, PersistenceDA, RFCDA):
     """
 
     """
