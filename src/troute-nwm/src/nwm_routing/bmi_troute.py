@@ -100,9 +100,18 @@ class BmiTroute:
         self._sorted_indices = None
         self._initialized = True
 
+        # initialize USGS dataframe
+        # TODO: make more empty
+        init_measurements = self.data_assimilation.usgs_df.iloc[:, int(self._current_time/300):]
+        self.output_var_store["discharge_obs"] = init_measurements
+
     def update(self):
         """Advance t-route by the default BMI update window (15 minutes)."""
-        self.update_until(time_window=900)
+        if self._current_time == 0.0:
+            # runs one routing step to avoid off-by-one error
+            self.update_until(300)
+        else:
+            self.update_until(time_window=900)
 
 
     def update_until(self, time_window):
@@ -112,7 +121,6 @@ class BmiTroute:
         time_window : int
             time window you want the model to slide into future
         """
-
         self._require_initialized()
         dt = self.forcing_parameters.get("dt")
 
@@ -143,6 +151,7 @@ class BmiTroute:
             self.discharge_obs = None
         elif ekf:
             usgs_df_for_nudge = pd.DataFrame()
+            df = self.data_assimilation.usgs_df
             self.discharge_obs = self.data_assimilation.usgs_df.iloc[:, int(self._current_time/300):]
 
         #route the model with the network information and correct lateral flows

@@ -37,9 +37,17 @@ class Interface:
         finally:
             os.chdir(original_dir)
 
+        init_measurements = self.troute_model.get_value_ptr("discharge_obs")
+        if isinstance(init_measurements, pd.DataFrame):
+            init_measurements = convert_df_for_kf(init_measurements)
+            # first timeseries obs data, needed to initialize kf
+            init_measurements = init_measurements.iloc[0:1]
+        else:
+            raise TypeError("Passed USGS data must be a pandas dataframe")
+
         try:
             os.chdir(self.yaml_file_path_KF.parent)
-            self.KF_model.initialize(self.yaml_file_path_KF.name)
+            self.KF_model.initialize(init_measurements, self.yaml_file_path_KF.name)
         finally:
             os.chdir(original_dir)
 
@@ -78,13 +86,26 @@ class Interface:
         self.KF_model.set_value("x", self.troute_model.get_value_ptr("x"))
         self.KF_model.set_value("initial_discharge", self.troute_model.get_value_ptr("discharge"))
 
-        # 3.1 Expose USGS values. We can set value in the KF_model once it's ready to ingest it.
-        print(self.troute_model.get_value_ptr("discharge_obs"))
+        discharge_obs = self.troute_model.get_value_ptr("discharge_obs")
+        if isinstance(discharge_obs, pd.DataFrame):
+            if not discharge_obs.empty:
+                discharge_obs = convert_df_for_kf(discharge_obs)
+                discharge_obs = discharge_obs.iloc[0:1] # just pass one timestep
+            else:
+                raise ValueError("Passed USGS dataframe from t-route cannot be empty")
+        else:
+            raise TypeError("Passed USGS data must be a pandas dataframe")
+        self.KF_model.set_value("discharge_obs", discharge_obs)
+        print("setting this measurements df in KF")
+        print(discharge_obs.head())
 
         # 4. KF parses sorted arrays into unsorted clusters using the cache
         self.KF_model.update_k_x_discharge(self.index_crosswalk_cache)
 
-        # 5. Update KF model
+        # 5. update measurements in KF
+        self.KF_model.update_measurements()
+
+        # 6. Update KF model
         self.KF_model.update()
 
         discharge = self.KF_model.get_value_ptr("discharge")
@@ -140,3 +161,13 @@ class Interface:
             index=self._time_history,
             columns=self._reach_columns
         )
+
+def convert_df_for_kf(discharge_obs):
+    discharge_obs = discharge_obs.T
+    discharge_obs = discharge_obs.astype("float64")
+    discharge_obs.index = pd.to_datetime(discharge_obs.index, utc=True)
+    discharge_obs.columns.name = None
+    discharge_obs.columns = discharge_obs.columns.astype(str)
+    discharge_obs = discharge_obs.dropna(axis=1, how="all")
+
+    return discharge_obs
