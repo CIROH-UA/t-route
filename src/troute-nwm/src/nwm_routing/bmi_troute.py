@@ -107,11 +107,7 @@ class BmiTroute:
 
     def update(self):
         """Advance t-route by the default BMI update window (15 minutes)."""
-        if self._current_time == 0.0:
-            # runs one routing step to avoid off-by-one error
-            self.update_until(300)
-        else:
-            self.update_until(time_window=900)
+        self.update_until(time_window=900)
 
 
     def update_until(self, time_window):
