@@ -1,3 +1,4 @@
+forcing_file_path: "forcing.csv"
 measurement_file_path: "usgs_streamflow.csv"
 network_file_path: "tx_ngen_calibrated.json"
 usgs_to_comid_file_path: "tx_usgs_to_wbid.csv"
