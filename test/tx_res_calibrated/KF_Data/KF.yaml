@@ -1,0 +1,6 @@
+measurement_file_path: "usgs_streamflow.csv"
+network_file_path: "tx_ngen_calibrated.json"
+usgs_to_comid_file_path: "tx_usgs_to_wbid.csv"
+start_date: "2023-05-13T00:00:00+00:00"
+end_date: "2022-05-14T23:00:00+00:00"
+with_troute: "True"
