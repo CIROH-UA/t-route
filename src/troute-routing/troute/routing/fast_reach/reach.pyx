@@ -28,8 +28,15 @@ cdef void muskingcunge(float dt,
         float ck = 0.0
         float cn = 0.0
         float X = 0.0
+        # Initialize the new coefficient variables
+        float c1 = 0.0
+        float c2 = 0.0
+        float c3 = 0.0
+        float c4 = 0.0
 
     #printf("reach.pyx before %3.9f\t", depthc)
+    
+    # Pass the addresses of c1, c2, c3, and c4 to the Fortran wrapper
     c_muskingcungenwm(
         &dt,
         &qup,
@@ -51,9 +58,14 @@ cdef void muskingcunge(float dt,
         &depthc,
         &ck,
         &cn,
-        &X)
+        &X,
+        &c1,
+        &c2,
+        &c3,
+        &c4)
     #printf("reach.pyx after %3.9f\t", depthc)
 
+    # Assign results back to the rv struct pointer
     rv.qdc = qdc
     rv.depthc = depthc
     rv.velc = velc
@@ -62,6 +74,12 @@ cdef void muskingcunge(float dt,
     rv.ck = ck
     rv.cn = cn
     rv.X = X
+    
+    # Populate C1-C4 into the struct so mc_reach.pyx can access them
+    rv.C1 = c1
+    rv.C2 = c2
+    rv.C3 = c3
+    rv.C4 = c4
 
 cpdef dict compute_reach_kernel(float dt,
         float qup,

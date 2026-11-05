@@ -25,13 +25,13 @@ class DAforcing_model():
 
     def __init__(self, bmi_cfg_file=None):
         """
-        
+
         """
         __slots__ = ['_data_assimilation_parameters', '_forcing_parameters', '_compute_parameters',
-                     '_output_parameters', '_usgs_df', 'reservoir_usgs_df', 'reservoir_usace_df', 
+                     '_output_parameters', '_usgs_df', 'reservoir_usgs_df', 'reservoir_usace_df',
                      '_rfc_timeseries_df', '_lastobs_df', '_t0', '_q0', '_waterbody_df', '_write_lite_restart',
-                     '_dateNull', 
-                     '_datesSecondsArray_usgs', '_nDates_usgs', '_stationArray_usgs', 
+                     '_dateNull',
+                     '_datesSecondsArray_usgs', '_nDates_usgs', '_stationArray_usgs',
                      '_stationStringLengthArray_usgs', '_nStations_usgs',
                      '_usgs_Array',
                      '_datesSecondsArray_reservoir_usgs', '_nDates_reservoir_usgs',
@@ -40,7 +40,7 @@ class DAforcing_model():
                      '_usgs_reservoir_Array',
                      '_datesSecondsArray_reservoir_usace', '_nDates_reservoir_usace',
                      '_stationArray_reservoir_usace', '_stationStringLengthArray_reservoir_usace',
-                     '_nStations_reservoir_usace', 
+                     '_nStations_reservoir_usace',
                      '_usace_reservoir_Array',
                      '_rfc_da_timestep', '_rfc_totalCounts', '_rfc_synthetic_values',
                      '_rfc_discharges', '_rfc_timeseries_idx', '_rfc_use_rfc',
@@ -51,9 +51,9 @@ class DAforcing_model():
                      '_lastObs_discharge',
                      '_q0_columnArray', '_q0_columnLengthArray', '_q0_nCol', '_q0_indexArray',
                      '_q0_nIndex', '_q0_Array',
-                     '_waterbodyLR_columnArray', '_waterbodyLR_columnLengthArray', 
+                     '_waterbodyLR_columnArray', '_waterbodyLR_columnLengthArray',
                      '_waterbodyLR_nCol', '_waterbodyLR_indexArray', '_waterbodyLR_nIndex',
-                     '_waterbodyLR_Array'                    
+                     '_waterbodyLR_Array'
                      ]
 
 
@@ -63,19 +63,20 @@ class DAforcing_model():
              data_assimilation_parameters,
              output_parameters,
             ) = _read_config_file(bmi_cfg_file)
-            
+
             self._compute_parameters = compute_parameters
             self._forcing_parameters = forcing_parameters
             self._data_assimilation_parameters = data_assimilation_parameters
             self._output_parameters = output_parameters
-            
+
             self._t0 = self._compute_parameters['restart_parameters']['start_datetime']
             self._write_lite_restart = 0
             #############################
             # Read DA files:
             #############################
             nudging = data_assimilation_parameters.get('streamflow_da', {}).get('streamflow_nudging', False)
-            
+            ekf = data_assimilation_parameters.get('streamflow_da', {}).get('streamflow_ekf', False)
+
             usgs_persistence = data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_persistence_da', {}).get('reservoir_persistence_usgs', False)
             usace_persistence = data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_persistence_da', {}).get('reservoir_persistence_usace', False)
             rfc = data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_rfc_da', {}).get('reservoir_rfc_forecasts', False)
@@ -95,7 +96,7 @@ class DAforcing_model():
             while timeslice_start <= timeslice_end:
                 timeslice_dates.append(timeslice_start.strftime('%Y-%m-%d_%H:%M:%S'))
                 timeslice_start += delta
-            
+
             # Create empty default dataframes:
             self._usgs_df = pd.DataFrame()
             self._reservoir_usgs_df = pd.DataFrame()
@@ -104,9 +105,9 @@ class DAforcing_model():
             self._lastobs_df = pd.DataFrame()
 
             # USGS Observations
-            if nudging or usgs_persistence:
+            if nudging or ekf or usgs_persistence:
                 usgs_timeslice_path = str(data_assimilation_parameters.get('usgs_timeslices_folder'))
-                if nudging:
+                if nudging or ekf:
                     self._usgs_df = _read_timeslice_files(usgs_timeslice_path,
                                                           timeslice_dates,
                                                           qc_threshold,
@@ -126,10 +127,10 @@ class DAforcing_model():
                                                                     900, #15 minutes
                                                                     cpu_pool,)
 
-            # USACE Observations        
+            # USACE Observations
             if usace_persistence:
                 usace_timeslice_path = str(data_assimilation_parameters.get('usace_timeslices_folder'))
-                self._reservoir_usace_df = _read_timeslice_files(usace_timeslice_path, 
+                self._reservoir_usace_df = _read_timeslice_files(usace_timeslice_path,
                                                                  timeslice_dates,
                                                                  qc_threshold,
                                                                  900, #15 minutes
@@ -165,7 +166,7 @@ class DAforcing_model():
 
             # read in metadata for BMI compliant arrays:
 
-            self._values = {} 
+            self._values = {}
 
             self._lastObs_gageArray = np.zeros(0)
             self._lastObs_gageStringLengths = np.zeros(0)
@@ -178,7 +179,7 @@ class DAforcing_model():
 
                     (_lastObs_gageArray, _lastObs_gageStringLengths, \
                     _lastObs_timeSince, _lastObs_discharge) = \
-                    df2a._bmi_disassemble_lastObs (self._lastobs_df) 
+                    df2a._bmi_disassemble_lastObs (self._lastobs_df)
 
                     self._lastObs_gageArray = _lastObs_gageArray
                     self._lastObs_gageStringLengths = _lastObs_gageStringLengths
@@ -194,14 +195,14 @@ class DAforcing_model():
             self._usgsArray = np.zeros(0)
 
             if not self._usgs_df.empty:
-                # 
-                # USGS dataframe: 
-                # 
+                #
+                # USGS dataframe:
+                #
                 # Dates related:
                 # - datesSecondsArray_usgs: "column names" of usgs dataframe: dates
                 #        in seconds relative to start_datetime
                 # - nDates_usgs: number of "dates" columns
-                # 
+                #
                 # Station ID related:
                 # - stationArray_usgs: "row names" of usgs dataframe: all station
                 #        names decoded into arrays of one ASCII code per string,
@@ -233,21 +234,21 @@ class DAforcing_model():
             self._reservoirUsgsArray = np.zeros(0)
 
             if not self._reservoir_usgs_df.empty:
-                # 
-                # Reservoir USGS and USACE dataframes: Array structures of 
+                #
+                # Reservoir USGS and USACE dataframes: Array structures of
                 # _reservoir_usgs_df and _reservoir_usace_df are
                 # fundamentally the same as usgs_df: input/output analogous.
-                # 
+                #
                 # In the following comments, usgs shall also represent usace
                 #
                 # Dates related:
                 # - datesSecondsArray_reservoir_usgs
                 # - nDates_usgs
-                # 
+                #
                 # Station ID related:
-                # - stationArray_usgs 
-                # - stationStringLengthArray_usgs 
-                # - nStations_usgs 
+                # - stationArray_usgs
+                # - stationStringLengthArray_usgs
+                # - nStations_usgs
                 #
                 ( _datesSecondsArray_reservoir_usgs, _nDates_reservoir_usgs, \
                      _stationArray_reservoir_usgs, _stationStringLengthArray_reservoir_usgs, \
@@ -262,16 +263,16 @@ class DAforcing_model():
                 # flatten the actual USGS datafrane into a numpy ndarray
                 _reservoirUsgsArray = df2a._flatten_array(self._reservoir_usgs_df, np.float32)
                 # ... and save it with the class instance
-                self._reservoirUsgsArray = _reservoirUsgsArray            
+                self._reservoirUsgsArray = _reservoirUsgsArray
 
-            # USACE Reservoir Observations    
+            # USACE Reservoir Observations
             self._datesSecondsArray_reservoir_usace = np.zeros(0)
             self._nDates_reservoir_usace = np.zeros(0)
             self._stationArray_reservoir_usace = np.zeros(0)
             self._stationStringLengthArray_reservoir_usace = np.zeros(0)
             self._nStations_reservoir_usace = np.zeros(0)
             self._reservoirUsaceArray = np.zeros(0)
-    
+
             if not self._reservoir_usace_df.empty:
 
                 # see detailed comments in USGS branch
@@ -288,22 +289,22 @@ class DAforcing_model():
                 # flatten the actual USACE datafrane into a numpy ndarray
                 _reservoirUsaceArray = df2a._flatten_array(self._reservoir_usace_df, np.float32)
                 # ... and save it with the class instance
-                self._reservoirUsaceArray = _reservoirUsaceArray  
+                self._reservoirUsaceArray = _reservoirUsaceArray
 
 
-            # RFC Timeseries    
-            self._rfc_da_timestep = np.zeros(0)    
-            self._rfc_totalCounts = np.zeros(0)   
-            self._rfc_synthetic_values = np.zeros(0)   
-            self._rfc_discharges = np.zeros(0)   
-            self._rfc_timeseries_idx = np.zeros(0)   
-            self._rfc_use_rfc = np.zeros(0)   
-            self._rfc_Datetime = np.zeros(0)   
-            self._rfc_timeSteps = np.zeros(0)   
-            self._rfc_StationId_array = np.zeros(0) 
-            self._rfc_StationId_stringLengths = np.zeros(0) 
-            self._rfc_List_array = np.zeros(0) 
-            self._rfc_List_stringLengths = np.zeros(0) 
+            # RFC Timeseries
+            self._rfc_da_timestep = np.zeros(0)
+            self._rfc_totalCounts = np.zeros(0)
+            self._rfc_synthetic_values = np.zeros(0)
+            self._rfc_discharges = np.zeros(0)
+            self._rfc_timeseries_idx = np.zeros(0)
+            self._rfc_use_rfc = np.zeros(0)
+            self._rfc_Datetime = np.zeros(0)
+            self._rfc_timeSteps = np.zeros(0)
+            self._rfc_StationId_array = np.zeros(0)
+            self._rfc_StationId_stringLengths = np.zeros(0)
+            self._rfc_List_array = np.zeros(0)
+            self._rfc_List_stringLengths = np.zeros(0)
 
             if not self._rfc_timeseries_df.empty:
 
@@ -334,21 +335,21 @@ class DAforcing_model():
             self._q0 = pd.DataFrame()
             self._waterbody_df = pd.DataFrame()
 
-            # q0    
-            self._q0_columnArray = np.zeros(0)    
-            self._q0_columnLengthArray = np.zeros(0)   
-            self._q0_nCol = np.zeros(0)   
-            self._q0_indexArray = np.zeros(0)   
-            self._q0_nIndex = np.zeros(0)   
-            self._q0_Array = np.zeros(0) 
+            # q0
+            self._q0_columnArray = np.zeros(0)
+            self._q0_columnLengthArray = np.zeros(0)
+            self._q0_nCol = np.zeros(0)
+            self._q0_indexArray = np.zeros(0)
+            self._q0_nIndex = np.zeros(0)
+            self._q0_Array = np.zeros(0)
 
             # waterbody_df
-            self._waterbodyLR_columnArray = np.zeros(0)    
-            self._waterbodyLR_columnLengthArray = np.zeros(0)    
-            self._waterbodyLR_nCol = np.zeros(0)    
-            self._waterbodyLR_indexArray = np.zeros(0)    
-            self._waterbodyLR_nIndex = np.zeros(0)    
-            self._waterbodyLR_Array = np.zeros(0)    
+            self._waterbodyLR_columnArray = np.zeros(0)
+            self._waterbodyLR_columnLengthArray = np.zeros(0)
+            self._waterbodyLR_nCol = np.zeros(0)
+            self._waterbodyLR_indexArray = np.zeros(0)
+            self._waterbodyLR_nIndex = np.zeros(0)
+            self._waterbodyLR_Array = np.zeros(0)
 
             lite_restart_file = self._compute_parameters['restart_parameters']['lite_channel_restart_file']
             if lite_restart_file:
@@ -369,7 +370,7 @@ class DAforcing_model():
                     self._q0_Array = _q0_Array
 
             lite_restart_file = self._compute_parameters['restart_parameters']['lite_waterbody_restart_file']
-            
+
             if lite_restart_file:
 
                 self._waterbody_df, _ = _read_lite_restart(lite_restart_file)
@@ -390,11 +391,11 @@ class DAforcing_model():
         else:
 
             raise(RuntimeError("No config file provided."))
-            
+
 
     def run(self, values: dict):
         """
-        Write t-route output values to files. Namely, create restart files (channel and waterbody), 
+        Write t-route output values to files. Namely, create restart files (channel and waterbody),
         lastobs files, and flowveldepth files to pass to coastal hydraulics models.
         Parameters
         ----------
@@ -406,17 +407,17 @@ class DAforcing_model():
         output_parameters = self._output_parameters
         da_parameters = self._data_assimilation_parameters
         write_lite_restart = values.get('write_lite_restart')
-        
-        
+
+
         if write_lite_restart == 1:
             if output_parameters and output_parameters['lite_restart'] is not None:
                 _write_lite_restart(
                     values,
                     self._t0,
                     output_parameters['lite_restart']
-                )   
+                )
             values['write_lite_restart'] = 0
-            
+
             lastobs_output_folder = da_parameters.get('streamflow_da',{}).get('lastobs_output_folder', None)
             if lastobs_output_folder:
                 _write_lastobs(
@@ -424,7 +425,7 @@ class DAforcing_model():
                     self._t0,
                     lastobs_output_folder
                 )
-            
+
         if output_parameters.get('stream_output',{}):
 
             t0 = self._t0
@@ -433,9 +434,9 @@ class DAforcing_model():
             stream_output_internal_frequency = output_parameters.get('stream_output').get('stream_output_internal_frequency')
             stream_output_time = output_parameters.get('stream_output').get('stream_output_time')
             write_flowveldepth_netcdf(values,
-                                      stream_output_directory,   
+                                      stream_output_directory,
                                       t0,
-                                      stream_output_time, 
+                                      stream_output_time,
                                       stream_output_type,
                                       stream_output_internal_frequency)
 
@@ -444,11 +445,11 @@ class DAforcing_model():
 def _read_config_file(custom_input_file):
     '''
     Read-in data from user-created configuration file.
-    
+
     Arguments
     ---------
     custom_input_file (str): configuration filepath, .yaml
-    
+
     Returns
     -------
     bmi_parameters               (dict): Input parameters re bmi configuration
@@ -477,10 +478,10 @@ def _read_config_file(custom_input_file):
         output_parameters,
         )
 
-def _read_timeslice_files(filepath, 
-                          dates, 
-                          qc_threshold, 
-                          frequency_secs, 
+def _read_timeslice_files(filepath,
+                          dates,
+                          qc_threshold,
+                          frequency_secs,
                           cpu_pool=1,
                           interpolation_limit=59,
                           ):
@@ -511,50 +512,50 @@ def _read_timeslice_files(filepath,
         observation_df_T.index = pd.to_datetime(
             observation_df_T.index, format = "%Y-%m-%d_%H:%M:%S"  # index variable as type datetime
         )
-        
-        # specify resampling frequency 
-        frequency = str(int(frequency_secs/60))+"min"    
+
+        # specify resampling frequency
+        frequency = str(int(frequency_secs/60))+"min"
 
         # interpolate and resample frequency
         buffer_df = observation_df_T.resample(frequency).asfreq()
         with Parallel(n_jobs=cpu_pool) as parallel:
-            
+
             jobs = []
             interp_chunks = ()
             step = 200
             for a, i in enumerate(range(0, len(observation_df_T.columns), step)):
-                
+
                 start = i
                 if (i+step-1) < buffer_df.shape[1]:
                     stop = i+(step)
                 else:
                     stop = buffer_df.shape[1]
-                    
+
                 jobs.append(
                     delayed(_interpolate_one)(observation_df_T.iloc[:,start:stop], interpolation_limit, frequency)
                 )
-                
+
             interp_chunks = parallel(jobs)
 
         observation_df_T = pd.DataFrame(
-            data = np.concatenate(interp_chunks, axis = 1), 
-            columns = buffer_df.columns, 
+            data = np.concatenate(interp_chunks, axis = 1),
+            columns = buffer_df.columns,
             index = buffer_df.index
         )
-        
+
         # re-transpose, making link the index
         observation_df_new = observation_df_T.transpose()
-    
+
     else:
         observation_df_new = pd.DataFrame()
 
     return observation_df_new
 
 def _interpolate_one(df, interpolation_limit, frequency):
-    
+
     interp_out = (df.resample('min').
                         interpolate(
-                            limit = interpolation_limit, 
+                            limit = interpolation_limit,
                             limit_direction = 'both'
                         ).
                         resample(frequency).
@@ -619,34 +620,34 @@ def _read_lastobs_file(
         ):
     with xr.open_dataset(lastobsfile) as ds:
         gages = ds[station_id].values
-        
+
         ref_time = datetime.strptime(ds.attrs[ref_t_attr_id], "%Y-%m-%d_%H:%M:%S")
-        
+
         last_ts = ds[time_idx_id].values[-1]
-        
+
         df_discharge = (
             ds[obs_discharge_id].to_dataframe().                 # discharge to MultiIndex DF
             replace(to_replace = discharge_nan, value = np.nan). # replace null values with nan
-            unstack(level = 0)                                   # unstack to single Index (timeInd)    
+            unstack(level = 0)                                   # unstack to single Index (timeInd)
         )
-        
+
         last_obs_index = (
             df_discharge.
             apply(pd.Series.last_valid_index).                   # index of last non-nan value, each gage
             to_numpy()                                           # to numpy array
         )
         last_obs_index = np.nan_to_num(last_obs_index, nan = last_ts).astype(int)
-                        
+
         last_observations = []
         lastobs_times     = []
         for i, idx in enumerate(last_obs_index):
             last_observations.append(df_discharge.iloc[idx,i])
             lastobs_times.append(ds.time.values[i, idx].decode('utf-8'))
-            
+
         last_observations = np.array(last_observations)
         lastobs_times     = pd.to_datetime(
-            np.array(lastobs_times), 
-            format="%Y-%m-%d_%H:%M:%S", 
+            np.array(lastobs_times),
+            format="%Y-%m-%d_%H:%M:%S",
             errors = 'coerce'
         )
 
@@ -667,11 +668,11 @@ def _read_lastobs_file(
 def _read_lite_restart(file):
     '''
     Open lite restart pickle files. Can open either waterbody_restart or channel_restart
-    
+
     Arguments
     -----------
         file (string): File path to lite restart file
-        
+
     Returns
     ----------
         df (DataFrame): restart states
@@ -679,10 +680,10 @@ def _read_lite_restart(file):
     '''
     # open pickle file to pandas DataFrame
     df = pd.read_pickle(pathlib.Path(file))
-    
+
     # extract restart time as datetime object
     t0 = df['time'].iloc[0].to_pydatetime()
-    
+
     return df.drop(columns = 'time') , t0
 
 def _write_lite_restart(
@@ -692,32 +693,32 @@ def _write_lite_restart(
 ):
     '''
     Save initial conditions dataframes as pickle files
-    
+
     Arguments
     -----------
         q0 (DataFrame):
         waterbodies_df (DataFrame):
         t0 (datetime.datetime):
         restart_parameters (string):
-        
+
     Returns
     -----------
-        
+
     '''
-    
+
     output_directory = lite_restart.get('lite_restart_output_directory', None)
     if output_directory:
-        
+
         # retrieve/reconstruct t-route produced output dataframes
         q0 = values['q0']
         q0_ids = values['q0_ids']
-        q0 = pd.DataFrame(data=q0.reshape(len(q0_ids), -1), 
+        q0 = pd.DataFrame(data=q0.reshape(len(q0_ids), -1),
                           index=q0_ids,
                           columns=['qu0','qd0','h0'])
 
         waterbodies_df = values['waterbody_df']
         waterbodies_ids = values['waterbody_df_ids']
-        
+
         # check for empty waterbody df
         if (len(waterbodies_df)==0):
 
@@ -725,11 +726,11 @@ def _write_lite_restart(
 
         else:
 
-            waterbodies_df = pd.DataFrame(data=waterbodies_df.reshape(len(waterbodies_ids), -1), 
+            waterbodies_df = pd.DataFrame(data=waterbodies_df.reshape(len(waterbodies_ids), -1),
                                       index=waterbodies_ids,
                                       columns=['ifd','LkArea','LkMxE','OrificeA','OrificeC','OrificeE',
                                                'WeirC','WeirE','WeirL','lon', 'lat', 'crs','qd0','h0','index'])
-            
+
             waterbodies_df.index.name = 'lake_id'
             waterbodies_df.drop(columns=['lon', 'lat', 'crs'], inplace=True)
 
@@ -739,7 +740,7 @@ def _write_lite_restart(
         timestamp_str = timestamp.strftime("%Y%m%d%H%M")
         channel_restart_filename = 'channel_restart_' + timestamp_str
         waterbody_restart_filename = 'waterbody_restart_' + timestamp_str
-        
+
         q0_out = q0.copy()
         q0_out['time'] = timestamp
         q0_out.to_pickle(pathlib.Path.joinpath(output_directory, channel_restart_filename))
@@ -776,7 +777,7 @@ def _write_lastobs(
     lastobs_timestamp = [modelTimeAtOutput + d for d in var]
     lastobs_timestamp_str = [d.strftime('%Y-%m-%d_%H:%M:%S') for d in lastobs_timestamp]
     lastobs_timestamp_str_array = np.asarray(lastobs_timestamp_str,dtype = '|S19').reshape(len(lastobs_timestamp_str),1)
-    
+
     # create xarray Dataset similarly structured to WRF-generated lastobs netcdf files
     ds = xr.Dataset(
         {
@@ -794,13 +795,13 @@ def _write_lastobs(
     ds.to_netcdf(str(output_path))
 
 def write_flowveldepth_netcdf(values,
-                              stream_output_directory,   
-                              t0, 
-                              stream_output_timediff = 1, 
+                              stream_output_directory,
+                              t0,
+                              stream_output_timediff = 1,
                               stream_output_type = '.nc',
                               stream_output_internal_frequency = 5):
     '''
-    Write the results of flowveldepth and nudge to netcdf- break. 
+    Write the results of flowveldepth and nudge to netcdf- break.
     Arguments
     -------------
     stream_output_directory (Path or string) - directory where file will be created
@@ -818,7 +819,7 @@ def write_flowveldepth_netcdf(values,
         nudge = pd.DataFrame(flatten_nudge.reshape(num_rows_ndg, num_columns_ndg), index=nudging_ids)
     else:
         nudge = pd.DataFrame()
-        
+
     ## getting the flatten value of flowveldepth
     flatten_fvd = values.get('fvd_results')
     fvd_index = values.get('fvd_index')
@@ -846,7 +847,7 @@ def write_flowveldepth_netcdf(values,
         nudge = pd.DataFrame(columns=ndg_columns)
     else:
         nudge.columns = ndg_columns
-    
+
     # Left joining qvd and nudge values on index
     qvd_ndg = pd.merge(qvd_ndg, nudge, left_index=True, right_index=True, how='left')
 
@@ -875,7 +876,7 @@ def write_flowveldepth_netcdf(values,
         columns_to_keep = [col for col in qvd_ndg.columns[start_col:end_col] if int(col.split('_')[1]) % selected_col == 0]
         subset_df = qvd_ndg[columns_to_keep]
         subset_df.columns = ['_'.join([col.split('_')[0], col.split('_')[2]]) for col in subset_df.columns]
-        
+
         # Create the file name based on the current time step
         current_time_step = time_steps[counter].strftime('%Y%m%d%H%M')
         if stream_output_directory:
@@ -956,4 +957,4 @@ def write_flowveldepth_netcdf(values,
                             'code_version': '',
                         }
                     )
-                    LOG.debug(f"Flowveldepth data saved as NetCDF files in {stream_output_directory}")    
+                    LOG.debug(f"Flowveldepth data saved as NetCDF files in {stream_output_directory}")
