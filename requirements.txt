@@ -40,7 +40,7 @@ scipy==1.17.1
 setuptools==68.2.2
 shapely==2.2.0
 toolz==1.2.0
-tx-fast-hydrology @ git+https://github.com/slama0077/tx-fast-hydrology_SL.git@a99e26068f593e76d8ef45bd51c96d70955a4560
+tx-fast-hydrology @ git+https://github.com/future-water/tx-fast-hydrology.git@361129f4cb44dce10f3ceea960da47baa1fc8945
 typing-extensions==4.16.0
 tzdata==2026.6
 url-normalize==3.1.0
