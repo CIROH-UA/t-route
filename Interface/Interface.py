@@ -49,19 +49,19 @@ class Interface:
         if dt_troute != dt_kf:
             raise ValueError(f"Time step mismatch: Troute ({dt_troute}) vs KF ({dt_kf})")
 
-        # start_troute = self.troute_model.get_start_datetime()
-        # start_kf = self.KF_model.get_start_datetime()
+        start_troute = self.troute_model.get_start_datetime()
+        start_kf = self.KF_model.get_start_datetime()
 
-        # if start_troute != start_kf:
-        #     raise ValueError(f"Start datetime mismatch: Troute ({start_troute}) vs KF ({start_kf})")
+        #start_KF should be ahead of t-route by dt_troute.
+        if start_troute != start_kf - pd.Timedelta(seconds=dt_troute):
+            raise ValueError(f"Start datetime mismatch: Troute ({start_troute}) should be ahead of KF ({start_kf}) by {dt_troute} seconds")
 
     def _build_cache(self):
         sorted_reach_list = self.troute_model.get_value_ptr("reach_list")
         self.index_crosswalk_cache = {}
 
         for model_name, model in self.KF_model.model_collection.models.items():
-            reach_ids = [int(reach) for reach in model.reach_ids]
-            idx_map = np.searchsorted(sorted_reach_list, reach_ids)
+            idx_map = np.searchsorted(sorted_reach_list, model.reach_ids)
             self.index_crosswalk_cache[model_name] = idx_map
 
     def update(self):
@@ -78,9 +78,6 @@ class Interface:
         self.KF_model.set_value("k", self.troute_model.get_value_ptr("k"))
         self.KF_model.set_value("x", self.troute_model.get_value_ptr("x"))
         self.KF_model.set_value("initial_discharge", self.troute_model.get_value_ptr("discharge"))
-
-        # 3.1 Expose USGS values. We can set value in the KF_model once it's ready to ingest it.
-        # print(self.troute_model.get_value_ptr("discharge_obs"))
 
         # 4. KF parses sorted arrays into unsorted clusters using the cache
         self.KF_model.update_k_x_discharge(self.index_crosswalk_cache)

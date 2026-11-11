@@ -338,7 +338,6 @@ def main_v04(argv):
             logFileName
         )
 
-
         output_end_time = time.time()
         task_times['output_time'] += output_end_time - output_start_time
 
