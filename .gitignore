@@ -55,6 +55,7 @@ __pycache__/
 *_cache
 .python-version
 .ipynb_checkpoints/
+.vscode/
 
 # pyenv #
 #########
@@ -81,3 +82,8 @@ bower_components/
 .grunt/
 src/vendor/
 dist/
+
+# tx_res_calibrated forcing is regenerated from tx_res_calibrated_forcing.nc
+# (python Interface/tx_res_forcing.py unpack test/tx_res_calibrated/tx_res_calibrated_forcing.nc test/tx_res_calibrated)
+test/tx_res_calibrated/trimmed_usgs_timeslices/
+test/tx_res_calibrated/tx_res_calibrated_lateral_inflow/
