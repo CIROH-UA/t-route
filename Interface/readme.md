@@ -2,13 +2,6 @@
 
 The `Interface` class connects t-route's Basic Model Interface (BMI) with the Kalman filter (KF) model provided by `tx-fast-hydrology`. It coordinates model initialization, exchanges routing parameters and discharge values, and supports warmup and forecast runs.
 
-## Installation
-
-First, complete the [t-route installation](../readme.md). Then install the additional KF dependency into the same Python environment:
-
-```bash
-uv pip install "tx-fast-hydrology @ git+https://github.com/slama0077/tx-fast-hydrology_SL.git@EKF_Troute"
-```
 
 ## Configuration and usage
 
