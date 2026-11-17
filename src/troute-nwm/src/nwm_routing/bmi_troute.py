@@ -423,9 +423,10 @@ class BmiTroute:
 
         discharge = np.concatenate([result[1][:, -3] for result in run_results])
 
-        k = np.concatenate([result[11][:, -2] for result in run_results])
+        # The final timestep's diagnostic triplet is [cn, Km (seconds), X].
+        k = np.concatenate([result[10][:, -2] for result in run_results])
 
-        x = np.concatenate([result[11][:, -1] for result in run_results])
+        x = np.concatenate([result[10][:, -1] for result in run_results])
 
         reach_list = np.concatenate([result[0] for result in run_results])
 

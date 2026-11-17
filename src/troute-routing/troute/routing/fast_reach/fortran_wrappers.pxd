@@ -38,10 +38,7 @@ cdef extern from "pyMCsingleSegStime_NoLoop.h":
                                   float *ck,
                                   float *cn,
                                   float *X,
-                                  float *c1,
-                                  float *c2,
-                                  float *c3,
-                                  float *c4) nogil;
+                                  float *Km) nogil;
     
 cdef extern from "pydiffusive.h":
     void c_diffnw(double *timestep_ar_g,

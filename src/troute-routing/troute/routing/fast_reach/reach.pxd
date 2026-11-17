@@ -5,10 +5,7 @@ cdef struct QVD:
     float cn
     float ck
     float X
-    float C1
-    float C2
-    float C3
-    float C4
+    float Km
 
 
 cdef void muskingcunge(float dt,
