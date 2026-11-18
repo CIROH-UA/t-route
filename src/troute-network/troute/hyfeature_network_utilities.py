@@ -18,7 +18,7 @@ import troute.nhd_io as nhd_io
 LOG = logging.getLogger('')
 
 
-def build_da_sets(da_params, run_sets, t0):
+def build_da_sets(da_params, run_sets, t0, dt=None):
     """
     Create set lists of USGS and/or USACE TimeSlice files used for
     streamflow and reservoir data assimilation
@@ -28,6 +28,7 @@ def build_da_sets(da_params, run_sets, t0):
     - da_params (dict): user-input data assimilation parameters
     - run_sets (list) : forcing files for each run set in the simlation
     - t0 (datetime)   : model initialization time
+    - dt              : MC simulation time step given by forcing_parameters in config yaml
 
     Returns
     -------
@@ -111,10 +112,21 @@ def build_da_sets(da_params, run_sets, t0):
             # lists of USGS and USACE TimeSlice files.
             da_sets.append({})
 
+            # end of run set i, strictly from its nts (falls back to
+            # final_timestamp if dt or nts are unavailable)
+            if dt is not None and set_dict.get('nts') is not None:
+                t_end = t0 + timedelta(seconds=dt * set_dict['nts'])
+            else:
+                t_end = run_sets[i]['final_timestamp']
+            
+            # store window end so observation dataframes can be trimmed to it
+            da_sets[i]['t_end'] = t_end
+
             # timestamps of TimeSlice files desired for run set i
             timestamps = pd.date_range(
                 t0 - dt_timeslice * timeslice_pad,
-                run_sets[i]['final_timestamp'] + dt_timeslice * 4,
+                t_end,
+                #OLD: run_sets[i]['final_timestamp'] + dt_timeslice * 4,
                 freq=dt_timeslice
             )
 
@@ -161,8 +173,8 @@ def build_da_sets(da_params, run_sets, t0):
             if LakeOntario_outflow:
                 da_sets[i]['LakeOntario_outflow'] = LakeOntario_outflow
             # reset initialization time for loop set i+1
-            t0 = run_sets[i]['final_timestamp']
-
+            #OLD: t0 = run_sets[i]['final_timestamp']
+            t0 = t_end
     return da_sets
 
 def _check_timeslice_exists(filenames, timeslices_folder):
