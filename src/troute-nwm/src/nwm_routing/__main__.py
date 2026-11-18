@@ -30,7 +30,6 @@ import troute.nhd_network_utilities_v02 as nnu
 import troute.hyfeature_network_utilities as hnu
 import sys
 
-
 LOG = logging.getLogger('')
 
 '''
@@ -113,11 +112,19 @@ def main_v04(argv):
     task_times['network_creation_time'] = network_end_time - network_start_time
 
     # Create run_sets: sets of forcing files for each loop
+    '''
+    Splitting into loops only works when there is one file per time step (e.g., CHOROUT files), 
+    because each loop is a slice of max_loop_size files. A nex-* file is one file per nexus, 
+    holding the whole time series. Slicing that list would give each loop a subset of locations, 
+    not a subset of time. So the code puts every nexus file into a single loop with the full nts, 
+    and max_loop_size is ignored.    
+    '''
     run_sets = network.build_forcing_sets()
-
+   
     # Create da_sets: sets of TimeSlice files for each loop
     if "data_assimilation_parameters" in compute_parameters:
-        da_sets = hnu.build_da_sets(data_assimilation_parameters, run_sets, network.t0)
+        da_sets = hnu.build_da_sets(data_assimilation_parameters, run_sets, network.t0,
+                                    dt=forcing_parameters.get('dt'))
 
     # Create parity_sets: sets of CHRTOUT files against which to compare t-route flows
     if output_parameters.get("wrf_hydro_parity_check"):
@@ -127,7 +134,7 @@ def main_v04(argv):
 
     # Create forcing data within network object for first loop iteration
     network.assemble_forcings(run_sets[0],)
-
+    
     # Create data assimilation object from da_sets for first loop iteration
     data_assimilation = DataAssimilation(
         network,
@@ -138,7 +145,6 @@ def main_v04(argv):
         value_dict=None,
         da_run=da_sets[0],
         )
-
 
     forcing_end_time = time.time()
     task_times['forcing_time'] += forcing_end_time - network_end_time
@@ -208,6 +214,11 @@ def main_v04(argv):
 
 
     for run_set_iterator, run in enumerate(run_sets):
+        '''
+        This loop is bounded by max_loop_size only when the lateral forcing uses 
+        CHRTOUT files. For nex- files, it runs across the entire simulation period, 
+        ignoring max_loop_size.
+        '''
         t0 = run.get("t0")
         dt = run.get("dt")
         nts = run.get("nts")
@@ -215,7 +226,6 @@ def main_v04(argv):
         if parity_sets:
             parity_sets[run_set_iterator]["dt"] = dt
             parity_sets[run_set_iterator]["nts"] = nts
-
 
         route_start_time = time.time()
 

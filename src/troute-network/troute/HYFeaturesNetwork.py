@@ -17,8 +17,11 @@ from troute.nhd_network import reverse_dict, extract_connections, reverse_networ
 from .rfc_lake_gage_crosswalk import get_rfc_lake_gage_crosswalk, get_great_lakes_climatology
 import re
 import sqlite3
+import logging
+
 __verbose__ = False
 __showtiming__ = False
+LOG = logging.getLogger('')
 
 def find_layer_name(layers, pattern):
     """
@@ -55,10 +58,11 @@ def read_geopkg(file_path, compute_parameters, waterbody_parameters, cpu_pool):
     data_assimilation_parameters = compute_parameters.get('data_assimilation_parameters', {})
     if any([
         data_assimilation_parameters.get('streamflow_da', {}).get('streamflow_nudging', False),
-        data_assimilation_parameters.get('streamflow_da', {}).get('streamflow_ekf', False),
+        data_assimilation_parameters.get('streamflow_da', {}).get('streamflow_kalman_filter', False),
         data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_persistence_usgs', False),
         data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_persistence_usace', False),
-        data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_rfc_da', {}).get('reservoir_rfc_forecasts', False)
+        data_assimilation_parameters.get('reservoir_da', {}).get('reservoir_rfc_da', {}).get('reservoir_rfc_forecasts', False),
+        (data_assimilation_parameters.get('gage_subnetworks') or {}).get('enabled', False),
     ]):
         layers_to_read.append('network')
 
@@ -256,7 +260,7 @@ class HYFeaturesNetwork(AbstractNetwork):
     """
 
     """
-    __slots__ = ["_upstream_terminal", "_nexus_latlon", "_duplicate_ids_df",]
+    __slots__ = ["_upstream_terminal", "_nexus_latlon", "_duplicate_ids_df", "_flowpath_gages",]
 
     def __init__(self,
                  supernetwork_parameters,
@@ -377,6 +381,14 @@ class HYFeaturesNetwork(AbstractNetwork):
         return self._gages
 
     @property
+    def flowpath_gages(self):
+        """
+        {flowpath id: gage id(s)} from the 'gages' column of the flowpath attributes,
+        i.e. the flowpath each gage sits on. Empty if that column was not mapped.
+        """
+        return getattr(self, '_flowpath_gages', None) or {}
+
+    @property
     def waterbody_null(self):
         return np.nan #pd.NA
 
@@ -420,8 +432,16 @@ class HYFeaturesNetwork(AbstractNetwork):
         if 'alt' not in self.dataframe.columns:
             self._dataframe['alt'] = 1.0 #FIXME get the right value for this...
 
-        # Drop 'gages' column if it is present
+        # Keep the flowpath -> gage mapping from the flowpath attributes (the gage sits on the
+        # flowpath itself), then drop the 'gages' column as before
+        self._flowpath_gages = {}
+
         if 'gages' in self.dataframe:
+            fp_gages = self.dataframe['gages'].dropna().astype(str).str.strip()
+            fp_gages = fp_gages[(fp_gages != '') & (fp_gages.str.lower() != 'nan')]
+            self._flowpath_gages = (
+                fp_gages.groupby(level=0).agg(lambda g: '/'.join(sorted(set(g)))).to_dict()
+            )
             self._dataframe = self.dataframe.drop('gages', axis=1)
         # numeric code used to indicate network terminal segments
         terminal_code = self.supernetwork_parameters.get("terminal_code", 0)
@@ -636,7 +656,54 @@ class HYFeaturesNetwork(AbstractNetwork):
         self._dataframe = self.dataframe.drop('waterbody', axis=1).drop_duplicates()
 
     def preprocess_data_assimilation(self, network):
-        if not network.empty:
+        # ------------------------------------------------------------------------------------------
+        # 1. Choose the hydrofabric layer the gage -> flowpath crosswalk comes from
+        #    (data_assimilation_parameters > streamflow_da > gage_crosswalk_source).
+        #    - 'flowpath_attributes' (default): the gage ID column of the flowpath-attributes layer,
+        #      one flowpath per gage. Needs the column listed under supernetwork_parameters > columns
+        #      (e.g. gages: "gage"); if it is not, the network layer is used instead.
+        #    - 'network': the network layer (original t-route), which ties a gage to a nexus; when
+        #      several flowpaths drain into that nexus, the one with the highest hydroseq is kept.
+        # ------------------------------------------------------------------------------------------
+        streamflow_da = self.data_assimilation_parameters.get('streamflow_da') or {}
+        crosswalk_source = streamflow_da.get('gage_crosswalk_source', 'flowpath_attributes')
+        if crosswalk_source == 'flowpath_attributes' and not self.flowpath_gages:
+            if not network.empty:
+                LOG.warning("gage_crosswalk_source is 'flowpath_attributes' but no gage column was read "
+                            "from flowpath-attributes (add gages: \"gage\" under supernetwork_parameters "
+                            "> columns); using the network layer instead.")
+            crosswalk_source = 'network'
+
+        # ------------------------------------------------------------------------------------------
+        # 2. Build gages_df from the selected layer. Same layout for both sources:
+        #    index = flowpath (segment) ID, columns = value (gage ID), hydroseq, lake_id
+        # ------------------------------------------------------------------------------------------
+        gages_df = None
+        if crosswalk_source == 'flowpath_attributes':
+            # one row per (flowpath, gage ID); only the first USGS gage of a flowpath is kept since
+            # streamflow DA uses one gage per flowpath. Non-USGS IDs (e.g. NID) are all kept.
+            rows = []
+            for segment, gage_ids in self.flowpath_gages.items():
+                ids = gage_ids.split('/')
+                usgs_ids = [g for g in ids if g.isnumeric()]
+                rows += [(segment, g) for g in usgs_ids[:1]]
+                rows += [(segment, g) for g in ids if not g.isnumeric()]
+            gages_df = pd.DataFrame(rows, columns=['id', 'value']).set_index('id')
+            # hydroseq is only used to pick the furthest downstream gage of a lake; take it from the
+            # network layer when it was read, otherwise 0.
+            hydroseq = pd.Series(dtype=float)
+            if not network.empty:
+                hs = network[['id', 'hydroseq']].dropna().drop_duplicates()
+                hs = hs[hs['id'].str.startswith('wb-')]
+                hs['id'] = hs['id'].str.split('-', expand=True).loc[:, 1].astype(float).astype(int)
+                hydroseq = hs.groupby('id')['hydroseq'].max()
+            gages_df['hydroseq'] = gages_df.index.map(hydroseq).fillna(0)
+            gages_df = gages_df.join(
+                pd.DataFrame().from_dict(self.waterbody_connections,orient='index',columns=['lake_id'])
+                )
+        elif not network.empty:
+            #This block under "if condition" always builds self._gages from the network layer, keeping 
+            #the flowpath with the highest hydroseq for each gage. That’s the original T-Route code.
             gages_df = network[['id','hl_uri','hydroseq']].drop_duplicates()
             # clear out missing values
             gages_df = gages_df[~gages_df['hl_uri'].isnull()]
@@ -655,6 +722,12 @@ class HYFeaturesNetwork(AbstractNetwork):
             gages_df = gages_df.explode(column='value').set_index('id').join(
                 pd.DataFrame().from_dict(self.waterbody_connections,orient='index',columns=['lake_id'])
                 )
+        LOG.info(f"gage crosswalk source: {crosswalk_source}")
+            
+        # ------------------------------------------------------------------------------------------
+        # 3. Everything below is derived from gages_df, whichever layer it came from.
+        # ------------------------------------------------------------------------------------------
+        if gages_df is not None:
             # transform dataframe into a dictionary where key is segment ID and value is gage ID
             usgs_ind = gages_df.value.str.isnumeric() #usgs gages used for streamflow DA
             # Use hydroseq information to determine furthest downstream gage when multiple are present.
@@ -731,7 +804,7 @@ class HYFeaturesNetwork(AbstractNetwork):
             self._gages = {}
             self._usgs_lake_gage_crosswalk = pd.DataFrame()
             self._usace_lake_gage_crosswalk = pd.DataFrame()
-            self._rfc_lake_gage_crosswalk = pd.DataFrame()
+            self._rfc_lake_gage_crosswalk = pd.DataFrame() 
 
     def build_qlateral_array(self, run,):
 
@@ -741,8 +814,10 @@ class HYFeaturesNetwork(AbstractNetwork):
         qlat_input_folder = run.get("qlat_input_folder", None)
         qlat_input_file = run.get("qlat_input_file", None)
         max_col = 1 + nts // qts_subdivisions
+        n_cols = int(np.ceil(nts / qts_subdivisions))   # forcing columns covering nts routing steps
+        dt = run.get("dt", None)
         col_t0 =self.t0.strftime('%Y%m%d%H%M')
-
+        import pdb; pdb.set_trace()
         if qlat_input_folder:
             qlat_input_folder = Path(qlat_input_folder)
             if "qlat_files" in run:
@@ -797,16 +872,36 @@ class HYFeaturesNetwork(AbstractNetwork):
                     df.index = [int("".join(filter(str.isdigit, f.stem)))]
                     df = df.rename_axis(None, axis=1)
                     df.index.name = 'feature_id'
+                    # --- align columns to t0 ---
                     try:
                         col_t0_idx = df.columns.get_loc(col_t0)
                     except KeyError:
-                        raise ValueError(f'Datetime column "{col_t0}" does not exist in nex-* files.')
+                        # OLD: raise ValueError(f'Datetime column "{col_t0}" does not exist in nex-* files.')
+                        raise ValueError(
+                            f'Datetime column "{col_t0}" (t0) does not exist in {f.name} '
+                            f'(file covers {df.columns[0]} to {df.columns[-1]}).'
+                        )
 
-                    stop = col_t0_idx + max_col - 1
+                    # qts_subdivisions is derived from the first forcing file in
+                    # build_forcing_sets; every file must have that same interval,
+                    # otherwise column k would not be t0 + k * dt * qts_subdivisions
+                    if len(df.columns) > 1 and dt:
+                        t_a, t_b = pd.to_datetime(df.columns[:2], format='%Y%m%d%H%M')
+                        dt_qlat = (t_b - t_a).total_seconds()
+                        if dt_qlat != dt * qts_subdivisions:
+                            raise ValueError(
+                                f"Forcing interval in {f.name} is {dt_qlat:.0f} s, but other forcing "
+                                f"files use {dt * qts_subdivisions} s. All forcing files must have "
+                                f"the same time interval."
+                            )
+                    # OLD: stop = col_t0_idx + max_col - 1
+                    stop = col_t0_idx + n_cols
+
                     # Check bounds for stop index
                     if stop > len(df.columns):
                         raise ValueError(
-                            f"The expected range of datetime columns does not exist in the nex-* files. "
+                            #OLD: f"The expected range of datetime columns does not exist in the nex-* files. "
++                           f"The expected range of datetime columns does not exist in {f.name}. "                           
                             f"Requested columns from index {col_t0_idx} to {stop - 1}, "
                             f"but dataframe only has {len(df.columns)} columns total."
                         )
@@ -832,10 +927,29 @@ class HYFeaturesNetwork(AbstractNetwork):
 
             qlats_df = lateralflows_df
 
-            if qlat_file_pattern_filter != "cat-*":
-                # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids
-                qlats_df.rename(index=self.downstream_flowpath_dict, inplace=True)
-
+            if qlat_file_pattern_filter == "nex-*":
+                # Assign lateral flow at nex-N to its downstream flowpath wb-N.
+                # In the hydrofabric nex-N drains to wb-N, so the nexus id is kept
+                # as-is and qlats_df row N holds the data of nex-N.csv.
+                # Nexuses whose downstream flowpath is not in the network (e.g. the
+                # domain outlet) fall back to the upstream flowpath so their flow
+                # is not dropped.
+                no_ds = ~qlats_df.index.isin(self.segment_index)
+                if no_ds.any():
+                    fallback = {n: self.downstream_flowpath_dict[n]
+                                for n in qlats_df.index[no_ds]
+                                if n in self.downstream_flowpath_dict}
+                    LOG.debug(
+                        f"{no_ds.sum()} nexus(es) have no downstream flowpath in the network; "
+                        f"{len(fallback)} reassigned to an upstream flowpath: {fallback}"
+                    )
+                    qlats_df = qlats_df.rename(index=fallback)
+                    # a fallback flowpath may also have its own nex row: sum them
+                    qlats_df = qlats_df.groupby(level=0).sum()
+            elif qlat_file_pattern_filter != "cat-*":
+                 # Take flowpath ids entering NEXUS and replace NEXUS ids by the upstream flowpath ids
+                 qlats_df.rename(index=self.downstream_flowpath_dict, inplace=True)
+ 
             qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]
 
             '''
@@ -893,6 +1007,19 @@ class HYFeaturesNetwork(AbstractNetwork):
 
         if not self.segment_index.empty:
             qlats_df = qlats_df[qlats_df.index.isin(self.segment_index)]
+
+        # Guarantee that file-based qlats start at t0 (first column == t0)
+        if qlat_input_folder and len(qlats_df.columns) > 0:
+            first_col = str(qlats_df.columns[0])
+            try:
+                first_time = pd.to_datetime(first_col, format='%Y%m%d%H%M')
+            except (ValueError, TypeError):
+                first_time = pd.to_datetime(first_col, errors='coerce')
+            if pd.notna(first_time) and first_time != pd.Timestamp(self.t0):
+                raise ValueError(
+                    f"First qlateral column {first_col} does not match t0 {self.t0}. "
+                    f"Check start_datetime and the forcing files."
+                )
 
         self._qlateral = qlats_df
 

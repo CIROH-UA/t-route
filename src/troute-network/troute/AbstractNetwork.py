@@ -61,9 +61,20 @@ class AbstractNetwork(ABC):
         break_network_at_waterbodies = self.waterbody_parameters.get("break_network_at_waterbodies", False)
         streamflow_da = self.data_assimilation_parameters.get('streamflow_da', False)
         break_network_at_gages       = False
+        
         if streamflow_da:
-            if streamflow_da.get('streamflow_nudging', False) or streamflow_da.get('streamflow_ekf', False):
-                break_network_at_gages   = True
+            break_network_at_gages = (
+                    streamflow_da.get('streamflow_nudging', False) or 
+                    streamflow_da.get('streamflow_kalman_filter', False)    )
+            # The break_network variable simply isolates stream segments with gages from 
+            # the rest of the reach, failing to produce a meaningful network partition for 
+            # hydraulic routing or data assimilation. Consequently, it is currently 
+            # hardcoded to False. 
+            # Note: This does not affect streamflow DA activation.
+            # When streamflow_da is True in the config file, DA is executed
+            # regardless of whether the network is broken at gage locations.
+            break_network_at_gages = False 
+                
         self.break_points            = {"break_network_at_waterbodies": break_network_at_waterbodies,
                                         "break_network_at_gages": break_network_at_gages}
 
@@ -532,8 +543,13 @@ class AbstractNetwork(ABC):
             "break_network_at_waterbodies", False
         )
 
-        # if streamflow DA, then break network at gages
-        #TODO update to work with HYFeatures, need to determine how we'll do DA...
+        # The break_network variable simply isolates stream segments with gages from 
+        # the rest of the reach, failing to produce a meaningful network partition for 
+        # hydraulic routing or data assimilation. Consequently, it is currently 
+        # hardcoded to False.
+        # Note: This does not affect streamflow DA activation.
+        # When streamflow_da is True in the config file, DA is executed
+        # regardless of whether the network is broken at gage locations.
         break_network_at_gages = False
 
         if break_network_at_waterbodies:
@@ -745,7 +761,6 @@ class AbstractNetwork(ABC):
         )
 
     def build_forcing_sets(self,):
-
         forcing_parameters = self.forcing_parameters
         supernetwork_parameters = self.supernetwork_parameters
         stream_output = self.output_parameters.get('stream_output', None)
@@ -765,7 +780,7 @@ class AbstractNetwork(ABC):
 
         forcing_glob_filter = forcing_parameters["qlat_file_pattern_filter"]
         binary_folder = forcing_parameters.get('binary_nexus_file_folder', None)
-
+   
         if forcing_glob_filter=="nex-*" and binary_folder:
             print("Reformating qlat nexus files as hourly binary files...")
             qlat_files = qlat_input_folder.glob(forcing_glob_filter)
@@ -784,9 +799,28 @@ class AbstractNetwork(ABC):
             forcing_parameters["qlat_file_pattern_filter"] = forcing_glob_filter
 
         if forcing_glob_filter=="nex-*" or forcing_glob_filter == "cat-*":
+            '''
+            Splitting into loops only works when there is one file per time step (e.g., CHOROUT files), 
+            because each loop is a slice of max_loop_size files. A nex-* file is one file per nexus, 
+            holding the whole time series. Slicing that list would give each loop a subset of locations, 
+            not a subset of time. So the code puts every nexus file into a single loop with the full nts, 
+            and max_loop_size is ignored.    
+            '''
             all_files = sorted(qlat_input_folder.glob(forcing_glob_filter))
             final_timestamp = pd.read_csv(all_files[0], header=None, index_col=[0]).tail(1).iloc[0,0]
             final_timestamp = datetime.strptime(final_timestamp.strip(), "%Y-%m-%d %H:%M:%S")
+
+            # Determine qts_subdivisions from the forcing data itself, ignoring the
+            # value in the yaml: forcing interval (first two rows) / routing dt.
+            qts_subdivisions = _qts_from_forcing_file(all_files[0], forcing_glob_filter, dt)
+            user_qts = forcing_parameters.get('qts_subdivisions', None)
+            if user_qts is not None and user_qts != qts_subdivisions:
+                LOG.info(
+                    f"qts_subdivisions set to {qts_subdivisions} from the forcing interval in "
+                    f"{all_files[0].name} and dt = {dt} s (yaml value {user_qts} ignored)."
+                )
+            forcing_parameters['qts_subdivisions'] = qts_subdivisions
+
 
             all_files = [os.path.basename(f) for f in all_files]
 
@@ -813,7 +847,7 @@ class AbstractNetwork(ABC):
                 run_sets[s]['final_timestamp'] = \
                     datetime.strptime(final_timestamp_str, '%Y-%m-%d_%H:%M:%S')
             '''
-        elif qlat_input_folder:
+        elif  qlat_input_folder:
             # Construct run_set dictionary from user-specified parameters
 
             # get the first and seconded files from an ordered list of all forcing files
@@ -955,6 +989,35 @@ def get_timesteps_from_nex(nexus_files):
     output_file_timestamps.sort()
     return output_file_timestamps
 
+def _qts_from_forcing_file(forcing_file, pattern, dt):
+    """
+    Number of routing timesteps per forcing timestep, from the time difference
+    between the first two rows of a nex-* or cat-* forcing file.
+    nex-* rows look like "0, 2022-08-22 00:00:00, 0.0" (no header);
+    cat-* files have a header with a 'Time' column.
+    """
+    if not dt:
+        raise ValueError("forcing_parameters 'dt' must be set to derive qts_subdivisions.")
+
+    if pattern == "nex-*":
+        times = pd.read_csv(forcing_file, header=None, usecols=[1], nrows=2).iloc[:, 0]
+    else:
+        times = pd.read_csv(forcing_file, usecols=['Time'], nrows=2)['Time']
+
+    if len(times) < 2:
+        raise ValueError(f"{forcing_file} has fewer than two rows; cannot determine the forcing interval.")
+
+    t1, t2 = pd.to_datetime(times.astype(str).str.strip())
+    dt_qlat = (t2 - t1).total_seconds()
+
+    if dt_qlat <= 0:
+        raise ValueError(f"Forcing timestamps in {forcing_file} are not increasing ({t1}, {t2}).")
+    if dt_qlat % dt != 0:
+        raise ValueError(
+            f"Forcing interval {dt_qlat:.0f} s in {forcing_file} is not a whole multiple of dt = {dt} s. "
+            f"Choose a dt that divides {dt_qlat:.0f} s."
+        )
+    return int(dt_qlat // dt)
 
 def split_csv_file(nexus_file, binary_folder):
     catchment_id = get_id_from_filename(nexus_file)

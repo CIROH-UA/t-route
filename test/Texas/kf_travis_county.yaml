@@ -1,0 +1,97 @@
+---
+#--------------------------------------------------------------------------------
+log_parameters:
+    #----------
+    showtiming: True
+    log_level: INFO
+#--------------------------------------------------------------------------------
+network_topology_parameters:
+    #----------
+    supernetwork_parameters:
+        #----------
+        geo_file_path: ./domain/travis_county_reduced.gpkg  #travis_county_reduced.gpkg #
+        columns:
+            key: "id"
+            downstream: "toid"
+            dx: "Length_m"
+            n: "n"
+            ncc: "nCC"
+            s0: "So"
+            bw: "BtmWdth"
+            waterbody: "WaterbodyID"
+            gages: "gage"
+            tw: "TopWdth"
+            twcc: "TopWdthCC"
+            musk: "MusK"
+            musx: "MusX"
+            cs: "ChSlp"
+            alt: "alt"
+    waterbody_parameters:
+        #----------
+        break_network_at_waterbodies: True
+
+#--------------------------------------------------------------------------------
+compute_parameters:
+    #----------
+    parallel_compute_method: serial  #by-subnetwork-jit-clustered 
+    compute_kernel: V02-structured
+    assume_short_ts: False 
+    subnetwork_target_size: 10
+    cpu_pool: 8
+    restart_parameters:
+        #----------
+        start_datetime: 2022-08-22 01:00:00
+        lite_channel_restart_file   : #restart/RESTART.2020082600_DOMAIN1
+        lite_waterbody_restart_file : #restart/waterbody_restart_202006011200
+    forcing_parameters:
+        #----------
+        qts_subdivisions: 12
+        dt: 300 # [sec] 300 == 5 minutes
+        qlat_input_folder: ./lateral_inflow/
+        qlat_file_pattern_filter: "nex-*"    
+        nts: 24 #288 #576.0 #288 for 1day
+        max_loop_size: 2 # [number of timesteps]  #** it activate only when lateral forcing is CHROUT_DOMAIN1 or NEXOUT with datetime on the file name.
+          
+
+    data_assimilation_parameters:
+        usgs_timeslices_folder   : usgs_timeslices_temp/
+        usace_timeslices_folder  : #usace_timeslices/
+        canada_timeslices_folder  : #Canadian_timeslices/
+        LakeOntario_outflow  :  #domain/cleaned_lakeOntario.csv
+        streamflow_da:
+            #----------
+            streamflow_nudging: True
+            diffusive_streamflow_nudging: False
+            streamflow_kalman_filter:  False
+            gage_crosswalk_source: flowpath_attributes   # or: network (original t-route behaviour)
+        reservoir_da:
+            #----------
+            reservoir_persistence_da:
+                #----------
+                reservoir_persistence_usgs: True
+                reservoir_persistence_usace: False
+            reservoir_rfc_da:
+                #----------
+                reservoir_rfc_forecasts: False
+                reservoir_rfc_forecasts_time_series_path: rfc_timeseries/
+                reservoir_rfc_forecasts_lookback_hours: 28
+                reservoir_rfc_forecasts_offset_hours: 28
+        gage_subnetworks:
+            enabled: True
+            n_up: 1
+            k_trib: 1
+            observed_gages_only: False
+            output_file: output/gage_subnetworks.csv
+#--------------------------------------------------------------------------------
+output_parameters:
+    lite_restart:
+        #----------
+        lite_restart_output_directory: restart/
+    #lakeout_output: lakeout/
+    lastobs_output: lastobs/    
+    #----------
+    stream_output:
+        stream_output_directory: output/
+        stream_output_time: -1 # -1 adds all outputs to a single file
+        stream_output_type: ".nc" #please select only between netcdf '.nc' or '.csv' or '.pkl'
+        stream_output_internal_frequency: 5 #[min] it should be order of 5 minutes. For instance if you want to output every hour put 60
