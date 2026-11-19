@@ -421,9 +421,12 @@ class BmiTroute:
         x = []
         reach_list = []
 
+
+        #result[1] has info on flow, vel, and depth and result[10] has info on courant variables and k
+        #look into mc_reach.pyx file, specifically the return staatement 
+        #of function compute_network_structured, for more info on what each index of the result list has
         discharge = np.concatenate([result[1][:, -3] for result in run_results])
 
-        # The final timestep's diagnostics are [cn, ck, X, Km (seconds)].
         k = np.concatenate([result[10][:, -1] for result in run_results])
 
         x = np.concatenate([result[10][:, -2] for result in run_results])
