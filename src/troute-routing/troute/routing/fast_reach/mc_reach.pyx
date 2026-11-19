@@ -77,9 +77,9 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
         qup and quc are initial conditions.
     Output buffer matches the same dimsions as input buffer in axis 0
     Input is nxm (n reaches by m variables)
-    Output is nx6 (n reaches by 6 return values)
+    Output is nx7 (n reaches by 7 return values)
         0: current flow, 1: current velocity, 2: current depth
-        3: cn, 4: Km (seconds), 5: X, populated when return_courant is True
+        3: cn, 4: ck, 5: X, 6: Km (seconds), populated when return_courant is True
     """
     cdef reach.QVD rv
     cdef reach.QVD *out = &rv
@@ -136,8 +136,9 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
 
         if return_courant:
             output_buf[i, 3] = out.cn
-            output_buf[i, 4] = out.Km
+            output_buf[i, 4] = out.ck
             output_buf[i, 5] = out.X
+            output_buf[i, 6] = out.Km
 
         qup = qdp
 
@@ -261,7 +262,7 @@ cpdef object compute_network_structured(
         raise ValueError(f"data_values shape mismatch")
     #define and initialize the final output array, add one extra time step for initial conditions
     cdef int qvd_ts_w = 3  # There are 3 values per timestep (corresponding to 3 columns per timestep)
-    cdef int courant_ts_w = 3
+    cdef int courant_ts_w = 4
     cdef np.ndarray[float, ndim=3] flowveldepth_nd = np.zeros((data_idx.shape[0], nsteps+1, qvd_ts_w), dtype='float32')
     cdef np.ndarray[float, ndim=3] courant_coefficient_nd = np.zeros((data_idx.shape[0], nsteps+1, courant_ts_w), dtype='float32')
     #Make ndarrays from the mem views for convience of indexing...may be a better method
@@ -484,7 +485,7 @@ cpdef object compute_network_structured(
     #Init buffers
     lateral_flows = np.zeros( max_buff_size, dtype='float32' )
     buf_view = np.zeros( (max_buff_size, 13), dtype='float32')
-    out_buf = np.full( (max_buff_size, 6), -1, dtype='float32')
+    out_buf = np.full( (max_buff_size, 7), -1, dtype='float32')
 
     cdef int num_reaches = len(reach_objects)
     #Dynamically allocate a C array of reach structs
@@ -766,6 +767,7 @@ cpdef object compute_network_structured(
                         courant_coefficient[segment.id, timestep, 0] = out_buf[_i, 3]
                         courant_coefficient[segment.id, timestep, 1] = out_buf[_i, 4]
                         courant_coefficient[segment.id, timestep, 2] = out_buf[_i, 5]
+                        courant_coefficient[segment.id, timestep, 3] = out_buf[_i, 6]
 
             # For each reach,
             # at the end of flow calculation, Check if there is something to assimilate

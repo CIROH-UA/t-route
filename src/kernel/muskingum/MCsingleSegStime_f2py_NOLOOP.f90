@@ -46,7 +46,7 @@ subroutine muskingcungenwm(dt, qup, quc, qdp, ql, dx, bw, tw, twcc,&
     aerror = 0.01_prec
     rerror = 1.0_prec
     tries = 0
-    Km = dt
+    Km = 0.0_prec
     X = 0.5_prec
     C1 = 0.0_prec
     C2 = 0.0_prec
