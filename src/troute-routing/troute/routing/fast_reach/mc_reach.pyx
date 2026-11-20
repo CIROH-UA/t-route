@@ -79,7 +79,8 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
     Input is nxm (n reaches by m variables)
     Output is nx7 (n reaches by 7 return values)
         0: current flow, 1: current velocity, 2: current depth
-        3: cn, 4: ck, 5: X, 6: Km (seconds), populated when return_courant is True
+        3: cn, populated when return_courant is True
+        4: ck, 5: X, 6: Km (seconds), always populated
     """
     cdef reach.QVD rv
     cdef reach.QVD *out = &rv
@@ -136,9 +137,10 @@ cdef void compute_reach_kernel(float qup, float quc, int nreach, const float[:,:
 
         if return_courant:
             output_buf[i, 3] = out.cn
-            output_buf[i, 4] = out.ck
-            output_buf[i, 5] = out.X
-            output_buf[i, 6] = out.Km
+
+        output_buf[i, 4] = out.ck
+        output_buf[i, 5] = out.X
+        output_buf[i, 6] = out.Km
 
         qup = qdp
 
@@ -245,10 +247,12 @@ cpdef object compute_network_structured(
         qlats (ndarray): a 2D array of qlat values (nodes x nsteps). The index must be shared with data_values
         initial_conditions (ndarray): an n x 3 array of initial conditions. n = nodes, column 1 = qu0, column 2 = qd0, column 3 = h0
         assume_short_ts (bool): Assume short time steps (quc = qup)
+        return_courant (bool): Store cn internally; MC parameters are always returned.
     Notes:
         Array dimensions are checked as a precondition to this method.
         This version creates python objects for segments and reaches,
         but then uses only the C structures and access for efficiency
+        Result index 10 contains flattened [ck, X, Km] triplets per timestep.
     """
 
     # Check shapes
@@ -262,9 +266,11 @@ cpdef object compute_network_structured(
         raise ValueError(f"data_values shape mismatch")
     #define and initialize the final output array, add one extra time step for initial conditions
     cdef int qvd_ts_w = 3  # There are 3 values per timestep (corresponding to 3 columns per timestep)
-    cdef int courant_ts_w = 4
+    cdef int courant_ts_w = 1
+    cdef int mc_parameters_ts_w = 3
     cdef np.ndarray[float, ndim=3] flowveldepth_nd = np.zeros((data_idx.shape[0], nsteps+1, qvd_ts_w), dtype='float32')
     cdef np.ndarray[float, ndim=3] courant_coefficient_nd = np.zeros((data_idx.shape[0], nsteps+1, courant_ts_w), dtype='float32')
+    cdef np.ndarray[float, ndim=3] mc_parameters_nd = np.zeros((data_idx.shape[0], nsteps+1, mc_parameters_ts_w), dtype='float32')
     #Make ndarrays from the mem views for convience of indexing...may be a better method
     cdef np.ndarray[float, ndim=2] data_array = np.asarray(data_values)
     cdef np.ndarray[float, ndim=2] init_array = np.asarray(initial_conditions)
@@ -499,6 +505,7 @@ cpdef object compute_network_structured(
     #create a memory view of the ndarray
     cdef float[:,:,::1] flowveldepth = flowveldepth_nd
     cdef float[:,:,::1] courant_coefficient = courant_coefficient_nd
+    cdef float[:,:,::1] mc_parameters = mc_parameters_nd
     cdef np.ndarray[float, ndim=3] upstream_array = np.empty((data_idx.shape[0], nsteps+1, 1), dtype='float32')
     cdef float reservoir_outflow, reservoir_water_elevation
     cdef int id = 0
@@ -765,9 +772,9 @@ cpdef object compute_network_structured(
                     flowveldepth[segment.id, timestep, 2] = out_buf[_i, 2]
                     if return_courant:
                         courant_coefficient[segment.id, timestep, 0] = out_buf[_i, 3]
-                        courant_coefficient[segment.id, timestep, 1] = out_buf[_i, 4]
-                        courant_coefficient[segment.id, timestep, 2] = out_buf[_i, 5]
-                        courant_coefficient[segment.id, timestep, 3] = out_buf[_i, 6]
+                    mc_parameters[segment.id, timestep, 0] = out_buf[_i, 4]
+                    mc_parameters[segment.id, timestep, 1] = out_buf[_i, 5]
+                    mc_parameters[segment.id, timestep, 2] = out_buf[_i, 6]
 
             # For each reach,
             # at the end of flow calculation, Check if there is something to assimilate
@@ -825,7 +832,7 @@ cpdef object compute_network_structured(
     free(reach_structs)
     #slice off the initial condition timestep and return
     output = np.asarray(flowveldepth[:,1:,:], dtype='float32')
-    output_courant_coefficient = np.asarray(courant_coefficient[:,1:,:], dtype='float32')
+    output_mc_parameters = np.asarray(mc_parameters[:,1:,:], dtype='float32')
     #do the same for the upstream_array
     output_upstream = np.asarray(upstream_array[:,1:,:], dtype='float32')
     #return np.asarray(data_idx, dtype=np.intp), np.asarray(flowveldepth.base.reshape(flowveldepth.shape[0], -1), dtype='float32')
@@ -863,5 +870,5 @@ cpdef object compute_network_structured(
             gl_prev_assim_timestamp,
             gl_update_time
         ),
-        output_courant_coefficient.reshape(output_courant_coefficient.shape[0], -1)[fill_index_mask]
+        output_mc_parameters.reshape(output_mc_parameters.shape[0], -1)[fill_index_mask]
     )
