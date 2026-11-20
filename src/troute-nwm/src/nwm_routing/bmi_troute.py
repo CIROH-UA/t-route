@@ -422,13 +422,12 @@ class BmiTroute:
         reach_list = []
 
 
-        #result[1] has info on flow, vel, and depth and result[10] has info on courant variables and k
+        #result[1] has info on flow, vel, and depth and result[10] has info of cn (courant number),
+        #ck (celerity of MC=kinematic wave speed [m/s]), X (dimensionless weight b/t I and O), Km (travel time of wave [sec])
         #look into mc_reach.pyx file, specifically the return staatement 
         #of function compute_network_structured, for more info on what each index of the result list has
         discharge = np.concatenate([result[1][:, -3] for result in run_results])
-
         k = np.concatenate([result[10][:, -1] for result in run_results])
-
         x = np.concatenate([result[10][:, -2] for result in run_results])
 
         reach_list = np.concatenate([result[0] for result in run_results])
