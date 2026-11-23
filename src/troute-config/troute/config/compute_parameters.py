@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, validator
 from datetime import datetime
+from pathlib import Path
 
 from typing import Optional, List, Union
 from typing_extensions import Literal
@@ -251,11 +252,24 @@ class StreamflowDA(BaseModel):
     """
     Boolean, determines whether or not streamflow nudging is performed.
     """
-    streamflow_ekf: bool = False
+    streamflow_kalman_filter: bool = False
     """
     Boolean, determines whether or not EKF-based streamflow DA is performed.
     NOTE: Not tested for NHDNetwork yet.
     """
+    gage_crosswalk_source: Literal["flowpath_attributes", "network"] = "flowpath_attributes"
+    """
+    HYFeatures only: which hydrofabric layer the gage -> flowpath crosswalk (network.link_gage_df)
+    is built from. Streamflow DA uses this crosswalk to place each USGS observation on a flowpath.
+    - "flowpath_attributes" (default): the gage ID column of the 'flowpath-attributes' layer, which
+      names the one flowpath each gage sits on. T-Route reads that column only if it is listed under
+      network_topology_parameters > supernetwork_parameters > columns, e.g.
+          columns:
+              gages: "gage"      # hydrofabric v2.2 ("rl_gages" in v2.1)
+      If it is not listed, the 'network' layer is used instead.
+    - "network": the 'network' layer, which ties each gage to a nexus; when several flowpaths drain
+      into that nexus, the one with the highest hydroseq is kept (original t-route behaviour).
+    """   
     gage_segID_crosswalk_file: Optional[FilePath] = None
     """
     File relating stream gage IDs to segment links in the model domain. This is typically the RouteLink file.
@@ -288,7 +302,11 @@ class StreamflowDA(BaseModel):
     This bypasses all the usual DA file reading logic via usgs_timeslices_folder and uses the feather file directly.
     Setting this will turn on streamflow nudging regardless of it's value in the config.
     """
-
+    streamflow_kalman_filter: bool = False
+    """
+    If True, enable streamflow Kalman Filter data assimilation for MC by default. 
+    NOTE: Not yet implemented, leave as False. (June 25, 2024)
+    """
 
 class ReservoirPersistenceDA(BaseModel):
     """
@@ -371,6 +389,31 @@ class ReservoirDA(BaseModel):
     NOTE: Needed for NHDNetwork, but not HYFeatures as this information is included in the hydrofabric.
     """
 
+class GageSubnetworkParameters(BaseModel):
+    """
+    Gage-anchored subnetworks, broken at reservoirs (built once per simulation, before routing).
+    """
+    enabled: bool = False
+    """
+    If True, build gage-anchored subnetworks.
+    """
+    n_up: int = Field(1, ge=0)
+    """
+    Junctions kept above uppermost gages (0 = nothing above the gage).
+    """
+    k_trib: int = Field(1, ge=0)
+    """
+    Junctions kept on ungaged tributaries joining a gage path or a reservoir (0 = terminal segment only).
+    """
+    output_file: Optional[Path] = None
+    """
+    Optional CSV path for the segment -> subnetwork table. A *_summary.csv is written next to it.
+    """
+    observed_gages_only: bool = False
+    """
+    If True, only gages with at least one observation in the USGS timeslices anchor subnetworks.
+    """
+
 
 class DataAssimilationParameters(BaseModel, extra='ignore'):
     """
@@ -415,6 +458,7 @@ class DataAssimilationParameters(BaseModel, extra='ignore'):
 
     streamflow_da: StreamflowDA = None
     reservoir_da: Optional[ReservoirDA] = None
+    gage_subnetworks: Optional[GageSubnetworkParameters] = None
 
     qc_threshold: float = Field(1, ge=0, le=1)
     """

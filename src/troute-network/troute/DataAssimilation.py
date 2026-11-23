@@ -10,6 +10,7 @@ import glob
 import re
 import time
 import logging
+from collections import defaultdict
 
 LOG = logging.getLogger('')
 from troute.routing.fast_reach.reservoir_RFC_da import _validate_RFC_data
@@ -106,14 +107,10 @@ class StreamflowDA(AbstractDA):
         if nudging or ekf:
 
             if not from_files:
-
                 if (legacy_bmi_df):
-
                     # THIS LINE WAS REPLACED BY THE BMI TRANSPORT STUFF
                     usgs_df = value_dict['usgs_df']
-
                 else:
-
                     # check if there are data transported
                     usgs_Array = value_dict['usgs_Array']
                     if len(usgs_Array) >0:
@@ -206,11 +203,12 @@ class StreamflowDA(AbstractDA):
                         temp_df['gages'] = temp_df['gages'].astype(int)
                         lastobs_df = temp_df.set_index('gages').dropna()
                         self._last_obs_df = lastobs_df
-
-                # replace link ids with lake ids, for gages at waterbody outlets,
-                # otherwise, gage data will not be assimilated at waterbody outlet
-                # segments because connections dic has replaced all link ids within
-                # waterbodies with related lake ids.
+                   
+                # Map outlet gauge IDs from channel link_ids to lake_ids.
+                # The network topology dictionary ('connections') indexes reservoir segments
+                # by lake_id rather than link_id; without this remapping, reservoir outlet gauge
+                # observations will fail key lookup and be skipped during assimilation. Note that
+                # 
                 if network.link_lake_crosswalk:
                     self._last_obs_df = _reindex_link_to_lake_id(self._last_obs_df, network.link_lake_crosswalk)
 
@@ -461,8 +459,8 @@ class PersistenceDA(AbstractDA):
                     link_lake_df = (
                         gage_lake_df.
                         join(gage_link_df, how = 'inner').
-                        reset_index().set_index('link').
-                        drop(['index'], axis = 1)
+                        reset_index(drop=True).set_index('link')#.
+                        #OLD: drop(['index'], axis = 1)
                     )
 
                     # resample `usgs_df` to 15 minute intervals
@@ -471,7 +469,7 @@ class PersistenceDA(AbstractDA):
                         transpose().
                         resample('15min').asfreq().
                         transpose()
-                    )
+                    )                     
 
                     # subset and re-index `usgs_df`, using the segID <> lakeID crosswalk
                     reservoir_usgs_df = (
@@ -619,8 +617,8 @@ class PersistenceDA(AbstractDA):
                 link_lake_df = (
                     gage_lake_df.
                     join(gage_link_df, how = 'inner').
-                    reset_index().set_index('link').
-                    drop(['index'], axis = 1)
+                    reset_index(drop=True).set_index('link')#.
+                    #OLD: drop(['index'], axis = 1)
                 )
 
                 # resample `usgs_df` to 15 minute intervals
@@ -979,7 +977,7 @@ class DataAssimilation(StreamflowDA, PersistenceDA, RFCDA):
     """
 
     """
-    __slots__ = ["_data_assimilation_parameters", "_run_parameters", "_waterbody_parameters"]
+    __slots__ = ["_data_assimilation_parameters", "_run_parameters", "_waterbody_parameters", "_gage_subnetworks"]
 
     def __init__(self, network, data_assimilation_parameters, run_parameters, waterbody_parameters,
                  from_files=True, value_dict=None, da_run=[]):
@@ -992,7 +990,9 @@ class DataAssimilation(StreamflowDA, PersistenceDA, RFCDA):
         PersistenceDA.__init__(self, network, from_files, value_dict, da_run)
         RFCDA.__init__(self, network, from_files, value_dict)
         great_lake.__init__(self, network, from_files, value_dict, da_run)
-
+        # Gage-anchored subnetworks for Kalman Filter: topology + gage locations only, so built once here
+        self._gage_subnetworks = self.build_gage_subnetworks(network)
+    
     def update_after_compute(self, run_results, time_increment):
         '''
 
@@ -1056,7 +1056,255 @@ class DataAssimilation(StreamflowDA, PersistenceDA, RFCDA):
     def great_lakes_param_df(self):
         return self._great_lakes_param_df
 
+    @property
+    def gage_subnetworks(self):
+        """Result of build_gage_subnetworks ({} when gage_subnetworks is not enabled)."""
+        return self._gage_subnetworks
 
+    def build_gage_subnetworks(self, network):
+        """
+        Partition the routing network into gage-anchored subnetworks, broken at reservoirs
+        (rules of gage_subnetworks_v8.py). Enabled by
+        compute_parameters.data_assimilation_parameters.gage_subnetworks. The partition depends only on
+        network topology and gage locations, so it is built once per simulation.
+
+        Rules
+          R0  Reservoir nodes are never part of a subnetwork: segments inside a lake (keys of
+              network.waterbody_connections) or collapsed lake nodes (its values, when
+              break_network_at_waterbodies is True).
+          R1  Reservoir nodes are removed; no traversal crosses a reservoir.
+          R2  From every gage, all downstream segments to the piece outlet.
+          U   Above each uppermost gage, segments up to n_up junctions.
+          R3  Ungaged tributaries joining a gage path: up to k_trib junctions.
+          R4  Other inflows of the reservoir a path drains into: ungaged -> R3, gaged -> E1.
+          E1  A tributary that holds a gage is handled from its own gages.
+          E2  Ungaged tributaries joining between two gages: up to k_trib junctions.
+              U, R3, R4 and E2 keep a branch whole when it reaches its headwater first.
+          M   Per-gage sets are merged when they share a segment or drain into the same reservoir.
+
+       Gage locations: network.link_gage_df, the same gage -> flowpath crosswalk streamflow DA uses
+        (from the flowpath attributes by default, see streamflow_da.gage_crosswalk_source).
+        observed_gages_only: keep only gages with at least one observation in self.usgs_df
+        Returns {} when disabled, otherwise a dict with
+          'subnetwork_of' {segment: subnetwork id (int, 1..N)}
+          'reason'        {segment: rule that added it}
+          'segments'      {subnetwork id: [segments]}
+          'reaches'       {subnetwork id: [[segments], ...]}  reaches of network.reaches_by_tailwater, clipped
+          'tailwater'     {subnetwork id: tailwater}
+          'gages'         {subnetwork id: [gage ids]}
+          'outlets'       {subnetwork id: [outlet segments]}
+          'drains_into'   {subnetwork id: [reservoir nodes] or []  (empty = network outlet)}
+          'reservoirs'    set of reservoir nodes excluded (R0)
+          'summary'       pandas.DataFrame, one row per subnetwork
+
+        Called once from DataAssimilation.__init__; the result is data_assimilation.gage_subnetworks.
+        """
+        gsn_parameters = (self._data_assimilation_parameters or {}).get("gage_subnetworks") or {}
+        if not gsn_parameters.get("enabled", False):
+            return {}
+        start_time = time.time()
+        n_up = gsn_parameters.get("n_up", 1)
+        k_trib = gsn_parameters.get("k_trib", 1)
+
+        connections = network.connections
+        rconn = network.reverse_network
+        wbody_conn = network.waterbody_connections or {}
+        reaches_bytw = network.reaches_by_tailwater
+
+        # ---------------- gage locations
+        link_gage_df = network.link_gage_df
+        gage_id = link_gage_df["gages"].to_dict() if not link_gage_df.empty else {}
+        if gsn_parameters.get("observed_gages_only", False):
+            usgs_df = self.usgs_df
+            observed = set(usgs_df.index[usgs_df.notna().any(axis=1)]) if not usgs_df.empty else set()
+            gage_id = {s: g for s, g in gage_id.items() if s in observed}
+        gage_id = {s: str(g) for s, g in gage_id.items()}
+        if not gage_id:
+            LOG.warning(
+                "gage subnetworks: network.link_gage_df is empty; nothing to build. Map the gage column "
+                "(columns: gages: \"gage\") or enable a DA option that reads the 'network' layer."
+            )
+        if not network.waterbody_parameters.get("break_network_at_waterbodies", False):
+            LOG.warning(
+                "gage subnetworks: break_network_at_waterbodies is False, so reservoirs are routed as "
+                "channel segments and subnetworks are not broken at reservoirs."
+            )
+
+        # ---------------- reservoirs (R0)
+        lake_nodes = set(wbody_conn.values())
+        RES = {n for n in connections if n in wbody_conn or n in lake_nodes}
+        dropped = [s for s in gage_id if s not in connections or s in RES]
+        if dropped:
+            LOG.warning(f"gage subnetworks: {len(dropped)} gage segment(s) not in the network or inside a "
+                        f"reservoir were ignored: {dropped[:10]}")
+        GAGE = {s for s in gage_id if s in connections and s not in RES}
+
+        # ---------------- reservoir-free graph (R1)
+        def ds_full(n):
+            d = connections.get(n) or []
+            return d[0] if len(d) else None
+
+        def dn(n):
+            d = ds_full(n)
+            return None if (d is None or d in RES) else d
+
+        def up(n):
+            return [u for u in rconn.get(n, []) if u not in RES]
+
+        # nodes with a gage at or upstream of them
+        gaged_up = set()
+        for g in GAGE:
+            n = g
+            while n is not None and n not in gaged_up:
+                gaged_up.add(n)
+                n = dn(n)
+
+        # ---------------- branch limiter shared by U, R3, R4, E2
+        def segment(x):
+            chain_ = [x]
+            while len(up(chain_[-1])) == 1:
+                chain_.append(up(chain_[-1])[0])
+            return chain_, up(chain_[-1])
+
+        def keep_from(x, seen, k):
+            kept, stack = set(), [(x, seen)]
+            while stack:
+                x, seen = stack.pop()
+                chain_, above = segment(x)
+                kept.update(chain_)                                 # headwater branch -> kept whole
+                if above and seen + 1 < k:                          # ends at a junction we may cross
+                    stack.extend((a, seen + 1) for a in above)
+            return kept
+
+        def above_gage(g, k):                                       # U
+            ups = up(g)
+            if k == 0 or not ups:
+                return set()
+            if len(ups) == 1:
+                return keep_from(ups[0], 0, k)
+            return set().union(*(keep_from(a, 1, k) for a in ups)) if k > 1 else set()
+
+        def trib(t):                                                # R3, R4, E2
+            return {t} if k_trib == 0 else keep_from(t, 0, k_trib)
+
+        # ---------------- union-find over gages (M)
+        parent = {g: g for g in GAGE}
+
+        def find(a):
+            while parent[a] != a:
+                parent[a] = parent[parent[a]]
+                a = parent[a]
+            return a
+
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[rb] = ra
+
+        RANK = {"gage": 6, "path": 5, "U above uppermost gage": 4, "E2 between gages": 3,
+                "R3 side tributary": 2, "R4 reservoir inflow": 1}
+        why, per_gage, owner, res_owner = {}, {}, {}, {}
+
+        def tag(segs, reason, g):
+            for s in segs:
+                per_gage[g].add(s)
+                o = owner.setdefault(s, g)
+                if o != g:
+                    union(o, g)
+                if RANK[reason] > RANK.get(why.get(s), 0):
+                    why[s] = reason
+
+        # Each gage walks downstream only to the next gage (or to the piece outlet); the next gage
+        # continues from there. Every segment is visited about once, so the cost is linear in network size.
+        for g in sorted(GAGE):
+            per_gage[g] = set()
+            if not any(u in gaged_up for u in up(g)):              # uppermost gage -> U
+                tag(above_gage(g, n_up), "U above uppermost gage", g)
+            tag([g], "gage", g)
+
+            stretch, s = [g], dn(g)                                 # R2: walk to next gage or outlet
+            while s is not None and s not in GAGE:
+                stretch.append(s)
+                s = dn(s)
+            next_gage = s                                           # None -> reached the piece outlet
+            tag(stretch[1:], "path", g)
+            if next_gage is not None:
+                stretch.append(next_gage)                           # tributaries joining at the next gage
+                union(g, next_gage)
+
+            reason = "E2 between gages" if next_gage is not None else "R3 side tributary"
+            for prev, s in zip(stretch[:-1], stretch[1:]):          # tributaries joining below g
+                for t in up(s):
+                    if t == prev or t in gaged_up:                  # own path / E1
+                        continue
+                    tag(trib(t), reason, g)
+
+            if next_gage is None:
+                end_ds = ds_full(stretch[-1])
+                if end_ds in RES:                                   # R4: other inflows of that reservoir
+                    for t in rconn.get(end_ds, []):
+                        if t == stretch[-1] or t in RES or t in gaged_up:
+                            continue
+                        tag(trib(t), "R4 reservoir inflow", g)
+                    o = res_owner.setdefault(end_ds, g)             # M: same reservoir -> same subnetwork
+                    if o != g:
+                        union(o, g)
+
+        groups = defaultdict(list)
+        for g in GAGE:
+            groups[find(g)].append(g)
+        groups = sorted(groups.values(), key=lambda gs: -len(set().union(*(per_gage[g] for g in gs))))
+
+        # ---------------- package results
+        seg_tw = {s: tw for tw, reaches in reaches_bytw.items() for reach in reaches for s in reach}
+        out = {k: {} for k in ("segments", "reaches", "tailwater", "gages", "outlets", "drains_into")}
+        out["reservoirs"] = RES
+        subnetwork_of = {}   
+
+        rows = []
+        for k, gs in enumerate(groups, 1):
+            segs = set().union(*(per_gage[g] for g in gs))
+            assert not segs & RES, "a reservoir node slipped into a gage subnetwork"
+            outlets = sorted(s for s in segs if dn(s) not in segs)
+            drains = sorted({ds_full(o) for o in outlets} & RES)
+            clipped = []
+            for tw in {seg_tw.get(s) for s in segs} - {None}:
+                for reach in reaches_bytw[tw]:
+                    part = [s for s in reach if s in segs]
+                    if part:
+                        clipped.append(part)
+            for s in segs:
+                subnetwork_of[s] = k
+            out["segments"][k] = sorted(segs)
+            out["reaches"][k] = clipped
+            out["tailwater"][k] = seg_tw.get(outlets[0])
+            out["gages"][k] = sorted(gage_id[g] for g in gs)
+            out["outlets"][k] = outlets
+            out["drains_into"][k] = drains
+            rows.append(dict(subnetwork=k, n_segments=len(segs), n_reaches=len(clipped),
+                             gages=", ".join(out["gages"][k]), outlets=";".join(map(str, outlets)),
+                             drains_into=";".join(map(str, drains)) if drains else "network outlet",
+                             tailwater=out["tailwater"][k]))
+        out["summary"] = pd.DataFrame(rows)
+
+        LOG.info(
+            "built %d gage subnetworks (%d segments, %d reservoir nodes excluded) in %.3f seconds."
+            % (len(out["segments"]), len(subnetwork_of), len(RES), time.time() - start_time)
+        )
+        '''
+        #Only for verification
+        output_file = gsn_parameters.get("output_file")
+        if output_file:
+            output_file = pathlib.Path(output_file)
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            pd.DataFrame({
+                "segment": list(subnetwork_of),
+                "subnetwork": list(subnetwork_of.values()),
+                "reason": [why.get(s) for s in subnetwork_of],
+            }).sort_values(["subnetwork", "segment"]).to_csv(output_file, index=False)
+            out["summary"].to_csv(output_file.with_name(output_file.stem + "_summary.csv"), index=False)
+        '''
+        return out
 # --------------------------------------------------------------
 # Helper functions
 # --------------------------------------------------------------
@@ -1118,12 +1366,12 @@ def _create_usgs_df(data_assimilation_parameters, streamflow_da_parameters, run_
     '''
     usgs_timeslices_folder = data_assimilation_parameters.get("usgs_timeslices_folder", None)
     #lastobs_file           = streamflow_da_parameters.get("wrf_hydro_lastobs_file", None)
-    lastobs_start          = data_assimilation_parameters.get("wrf_hydro_lastobs_lead_time_relative_to_simulation_start_time",0)
-    lastobs_type           = data_assimilation_parameters.get("wrf_lastobs_type", "error-based")
-    crosswalk_file         = streamflow_da_parameters.get("gage_segID_crosswalk_file", None)
+    #lastobs_start          = data_assimilation_parameters.get("wrf_hydro_lastobs_lead_time_relative_to_simulation_start_time",0)
+    #lastobs_type           = data_assimilation_parameters.get("wrf_lastobs_type", "error-based")
+    #crosswalk_file         = streamflow_da_parameters.get("gage_segID_crosswalk_file", None)
     crosswalk_gage_field   = streamflow_da_parameters.get('crosswalk_gage_field','gages')
     crosswalk_segID_field  = streamflow_da_parameters.get('crosswalk_segID_field','link')
-    da_decay_coefficient   = data_assimilation_parameters.get("da_decay_coefficient",120)
+    #da_decay_coefficient   = data_assimilation_parameters.get("da_decay_coefficient",120)
     qc_threshold           = data_assimilation_parameters.get("qc_threshold",1)
     interpolation_limit    = data_assimilation_parameters.get("interpolation_limit_min",59)
     LOG.info("Reading and preprocessing usgs timeslice files is started.")
@@ -1132,7 +1380,6 @@ def _create_usgs_df(data_assimilation_parameters, streamflow_da_parameters, run_
     usgs_timeslices_folder = pathlib.Path(usgs_timeslices_folder)
     usgs_files = [usgs_timeslices_folder.joinpath(f) for f in
                   da_run['usgs_timeslice_files']]
-
     if usgs_files:
         usgs_df = (
             nhd_io.get_obs_from_timeslices(
@@ -1148,7 +1395,21 @@ def _create_usgs_df(data_assimilation_parameters, streamflow_da_parameters, run_
             ).
             loc[network.link_gage_df.index]
         )
-
+        # Observation timestamps inside TimeSlice files can be later than the
+        # file's nominal time, which adds columns past the window end.
+        # Trim strictly to [t0, t_end] of this run set.
+        t_end = da_run.get('t_end')
+        if t_end is not None and not usgs_df.empty:
+            # if the simulation time window extends past the last available
+            # TimeSlice file, end the window at that file's time instead
+            usgs_files = da_run.get('usgs_timeslice_files', [])
+            if usgs_files:
+                last_file_time = max(
+                    datetime.strptime(pathlib.Path(f).name.split('.')[0], '%Y-%m-%d_%H:%M:%S')
+                    for f in usgs_files
+                )
+                t_end_usgs = min(t_end, last_file_time)
+            usgs_df = usgs_df.loc[:, network.t0:t_end_usgs]
     else:
         usgs_df = pd.DataFrame()
     LOG.debug("Reading and preprocessing usgs timeslice files is completed in %s seconds." % (time.time() - usgs_df_start_time))
