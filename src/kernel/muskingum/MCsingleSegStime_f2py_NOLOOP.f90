@@ -6,7 +6,7 @@ module muskingcunge_module
 contains
 
 subroutine muskingcungenwm(dt, qup, quc, qdp, ql, dx, bw, tw, twcc,&
-    n, ncc, cs, s0, velp, depthp, qdc, velc, depthc, ck, cn, X, C1, C2, C3, C4)
+    n, ncc, cs, s0, velp, depthp, qdc, velc, depthc, ck, cn, X, Km)
 
     !* exactly follows SUBMUSKINGCUNGE in NWM:
     !* 1) qup and quc for a reach in upstream limit take zero values all the time
@@ -22,8 +22,8 @@ subroutine muskingcungenwm(dt, qup, quc, qdp, ql, dx, bw, tw, twcc,&
     real(prec), intent(in) :: velp
     real(prec), intent(in) :: depthp
     real(prec), intent(out) :: qdc, velc, depthc
-    real(prec), intent(out) :: ck, cn, X
-    real(prec), intent(out) :: C1, C2, C3, C4
+    real(prec), intent(out) :: ck, cn, X, Km
+    real(prec) :: C1, C2, C3, C4
     real(prec) :: z
     real(prec) :: bfd
 
@@ -46,6 +46,8 @@ subroutine muskingcungenwm(dt, qup, quc, qdp, ql, dx, bw, tw, twcc,&
     aerror = 0.01_prec
     rerror = 1.0_prec
     tries = 0
+    Km = 0.0_prec
+    X = 0.5_prec
     C1 = 0.0_prec
     C2 = 0.0_prec
     C3 = 0.0_prec
@@ -95,9 +97,9 @@ subroutine muskingcungenwm(dt, qup, quc, qdp, ql, dx, bw, tw, twcc,&
 
             !Uncomment next four lines for new initialization
             call secant2_h(z, bw, bfd, twcc, s0, n, ncc, dt, dx, &
-                qdp, ql, qup, quc, h_0, 1, Qj_0, C1, C2, C3, C4, X)
+                qdp, ql, qup, quc, h_0, 1, Qj_0, C1, C2, C3, C4, X, Km)
             call secant2_h(z, bw, bfd, twcc, s0, n, ncc, dt, dx, &
-                qdp, ql, qup, quc, h, 2, Qj, C1, C2, C3, C4, X)
+                qdp, ql, qup, quc, h, 2, Qj, C1, C2, C3, C4, X, Km)
 
             if(Qj_0-Qj .ne. 0.0_prec) then
                 h_1 = h - ((Qj * (h_0 - h))/(Qj_0 - Qj)) !update h, 3rd estimate
@@ -201,7 +203,7 @@ end subroutine muskingcungenwm
 
 !Uncomment this function signature for new initialization
 subroutine secant2_h(z, bw, bfd, twcc, s0, n, ncc, dt, dx, &
-    qdp, ql, qup, quc, h, interval, Qj, C1, C2, C3, C4, X)
+    qdp, ql, qup, quc, h, interval, Qj, C1, C2, C3, C4, X, Km)
 
     implicit none
 
@@ -209,11 +211,11 @@ subroutine secant2_h(z, bw, bfd, twcc, s0, n, ncc, dt, dx, &
     real(prec), intent(in) :: dt, dx
     real(prec), intent(in) :: qdp, ql, qup, quc
     real(prec), intent(in) :: h
-    real(prec), intent(out) :: Qj, C1, C2, C3, C4, X
+    real(prec), intent(out) :: Qj, C1, C2, C3, C4, X, Km
     integer,    intent(in) :: interval
 
     real(prec) :: twl, AREA, WP, R
-    real(prec) :: Ck, Cn, Km, D
+    real(prec) :: Ck, Cn, D
     integer    :: upper_interval, lower_interval
 
     !Uncomment for old initialization

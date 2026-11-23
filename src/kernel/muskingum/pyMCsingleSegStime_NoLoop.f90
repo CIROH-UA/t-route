@@ -6,18 +6,17 @@ use muskingcunge_module, only: muskingcungenwm
 implicit none
 contains
 subroutine c_muskingcungenwm(dt, qup, quc, qdp, ql, dx, bw, tw, twcc,&
-    n, ncc, cs, s0, velp, depthp, qdc, velc, depthc, ck, cn, X, C1, C2, C3, C4) bind(c)
+    n, ncc, cs, s0, velp, depthp, qdc, velc, depthc, ck, cn, X, Km) bind(c)
 
     real(c_float), intent(in) :: dt
     real(c_float), intent(in) :: qup, quc, qdp, ql
     real(c_float), intent(in) :: dx, bw, tw, twcc, n, ncc, cs, s0
     real(c_float), intent(in) :: velp, depthp
     real(c_float), intent(out) :: qdc, velc, depthc
-    real(c_float), intent(out) :: ck, cn, X
-    real(c_float), intent(out) :: C1, C2, C3, C4
+    real(c_float), intent(out) :: ck, cn, X, Km
 
     call muskingcungenwm(dt, qup, quc, qdp, ql, dx, bw, tw, twcc,&
-    n, ncc, cs, s0, velp, depthp, qdc, velc, depthc, ck, cn, X, C1, C2, C3, C4)
+    n, ncc, cs, s0, velp, depthp, qdc, velc, depthc, ck, cn, X, Km)
     !print*, "fortran c_bind", depthc
     
 end subroutine c_muskingcungenwm
